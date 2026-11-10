@@ -5,6 +5,8 @@ pick gates to grow it, shoot through hordes, step off marked ground, call in
 airstrikes and bring down a boss every fifth level. Coins buy weapons, tougher
 infantry and upgrades between battles.
 
+**Play it: https://rodkend78.github.io/hordebreak/**
+
 The whole game is a single file, `index.html`: plain WebGL2 and WebAudio, no
 libraries, no image or sound files. Open it in a browser to play.
 
@@ -24,6 +26,13 @@ python3 build.py
 
 This joins `head.html`, every module listed in `order.txt`, and `tail.html`
 into `index.html`. There is no bundler and nothing to install.
+
+## Publishing
+
+The site is served by GitHub Pages from the `gh-pages` branch. Every push to
+`main` runs `.github/workflows/publish.yml`, which checks that `index.html`
+is up to date with the sources and then moves `gh-pages` to the new commit.
+The live page follows a minute or two later.
 
 ## Layout
 

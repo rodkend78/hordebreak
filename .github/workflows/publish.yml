@@ -1,0 +1,23 @@
+# Keeps the live site (GitHub Pages, served from the gh-pages branch) in step
+# with main. It first checks that index.html matches what build.py produces,
+# so a stale page is never published.
+name: Publish
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check index.html is built from the sources
+        run: |
+          cp index.html /tmp/committed.html
+          python3 build.py
+          cmp index.html /tmp/committed.html
+      - name: Update the published branch
+        run: git push origin HEAD:gh-pages
