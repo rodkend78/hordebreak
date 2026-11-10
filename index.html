@@ -333,6 +333,42 @@ html, body {
 .stars i.on { background: var(--accent); animation: star-in 0.35s ease-out backwards; }
 @keyframes star-in { from { transform: scale(2.2) rotate(-25deg); opacity: 0; } to { transform: none; opacity: 1; } }
 
+.tools { display: flex; gap: 8px; }
+.icon-btn svg { display: block; margin: auto; }
+.strike-key { display: none; }
+.keys { display: none; margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+#app:fullscreen { background: var(--ink); }
+
+/* ---------- desktop: a wide window gets the whole view ----------
+   The road runs up the middle; menus stand in a column on the left so the
+   squad stays in sight, and the armory lays its three shelves side by side. */
+@media (min-width: 820px) and (min-height: 560px) and (min-aspect-ratio: 1/1) {
+  #stage { width: 100%; aspect-ratio: auto; }
+  .hud-top, .boss-bar { width: 100%; max-width: 860px; margin-inline: auto; }
+  .hud-top { padding-top: 20px; }
+  .buffs { left: 28px; bottom: 28px; }
+  .chip { font-size: 13px; }
+  .strike { right: 28px; bottom: 28px; width: 104px; height: 104px; font-size: 15px; }
+  .strike-label { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .strike-key { display: block; padding: 1px 7px; border-radius: 5px; border: 1px solid currentColor; font: 700 10px var(--display); letter-spacing: 0.1em; opacity: 0.75; }
+  .toast { top: 14%; font-size: 20px; }
+  .hint { bottom: 14%; font-size: 20px; }
+  .keys { display: block; }
+
+  .screen { padding: 28px 40px 36px; background: linear-gradient(to right, rgba(11, 18, 48, 0.95) 0, rgba(11, 18, 48, 0.88) 24%, rgba(11, 18, 48, 0.3) 48%, rgba(11, 18, 48, 0) 64%); }
+  .screen .panel { width: 440px; max-width: 42vw; gap: 14px; }
+  .title { font-size: 76px; }
+  .brief { font-size: 16px; }
+  .result { background: linear-gradient(to right, rgba(11, 18, 48, 0.96) 0, rgba(11, 18, 48, 0.9) 26%, rgba(11, 18, 48, 0.35) 52%, rgba(11, 18, 48, 0.1) 70%); }
+  .pause { align-items: center; background: rgba(11, 18, 48, 0.82); }
+  .pause .panel { width: 380px; }
+
+  .armory { background: var(--ink); padding: 28px 40px 0; }
+  .armory .topline { width: 100%; max-width: 1240px; margin-inline: auto; }
+  .list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 24px; align-content: start; width: 100%; max-width: 1240px; margin: 12px auto 0; padding: 0 0 32px; }
+  .next-unlock { grid-column: 1 / -1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .toast.pop, .strike.ready, .stars i.on { animation: none; }
 }
@@ -2294,7 +2330,10 @@ class Renderer {
 
   resize() {
     const rect = this.canvas.getBoundingClientRect();
-    const dpr = Math.min(this.maxDpr, window.devicePixelRatio || 1);
+    // A large desktop window at full pixel density is more than the scene needs:
+    // cap the total number of pixels drawn.
+    const fit = Math.sqrt(3.6e6 / Math.max(1, rect.width * rect.height));
+    const dpr = Math.max(1, Math.min(this.maxDpr, window.devicePixelRatio || 1, fit));
     const w = Math.max(2, Math.round(rect.width * dpr));
     const h = Math.max(2, Math.round(rect.height * dpr));
     if (w === this.w && h === this.h) return;
@@ -2305,14 +2344,18 @@ class Renderer {
 
   camera(camX, shake) {
     const aspect = this.w / this.h;
-    const fovy = (aspect < 0.8 ? 60 : 46) * (Math.PI / 180);
-    let H = 13.5, D = 9.5;
+    // A wide window (desktop) gets a lower camera that looks further up the
+    // road; a tall one (phone) looks down from above so the road fills it.
+    const wide = aspect >= 1;
+    this.wide = wide;
+    const fovy = (aspect < 0.8 ? 60 : wide ? 42 : 46) * (Math.PI / 180);
+    let H = wide ? 9.8 : 13.5, D = wide ? 14 : 9.5;
     const need = ROAD_HALF + 0.3;
     const half = Math.hypot(H, D) * Math.tan(fovy / 2) * aspect;
     const s = Math.max(1, need / half);
     H *= s; D *= s;
     const eye = [camX * 0.35 + shake[0], H + shake[1], D];
-    const tgt = [camX * 0.2, 0, -(8 + 4 * s)];
+    const tgt = wide ? [camX * 0.25, 0.4, -11.5] : [camX * 0.2, 0, -(8 + 4 * s)];
     const view = lookAt(eye, tgt, [0, 1, 0]);
     const proj = perspective(fovy, aspect, 0.5, 160);
     this.vp = mul(proj, view);
@@ -2320,6 +2363,15 @@ class Renderer {
     this.right = [view[0], view[4], view[8]];
     this.up = [view[1], view[5], view[9]];
     this.pxPerUnit = this.h / 2 / Math.tan(fovy / 2);
+  }
+
+  // Where a screen position (canvas pixels from the left) falls across the
+  // road at the squad's depth. Used for steering with the mouse.
+  roadX(px) {
+    const a = this.project(-ROAD_HALF, 0, 0);
+    const b = this.project(ROAD_HALF, 0, 0);
+    if (!a || !b || b.x - a.x < 1) return null;
+    return -ROAD_HALF + ((px - a.x) / (b.x - a.x)) * 2 * ROAD_HALF;
   }
 
   // World point -> screen pixels (and how big one world unit is there).
@@ -3339,15 +3391,18 @@ function buildUI(root) {
     </div>
     <div id="boss-bar" class="boss-bar" hidden><span>BOSS</span><div class="bar foe"><div id="boss-fill" class="bar-fill"></div></div></div>
     <div id="hud-buffs" class="buffs"></div>
-    <button id="btn-strike" class="strike" hidden aria-label="Call airstrike"><span class="strike-fill"></span><span class="strike-label">Strike</span></button>
+    <button id="btn-strike" class="strike" hidden aria-label="Call airstrike"><span class="strike-fill"></span><span class="strike-label">Strike<kbd class="strike-key">Space</kbd></span></button>
     <div id="toast" class="toast" hidden></div>
-    <div id="hint" class="hint" hidden>Drag left and right to steer.<br>Your squad fires on its own.</div>
+    <div id="hint" class="hint" hidden></div>
   </div>
 
   <section id="screen-home" class="screen home" hidden>
     <div class="topline">
       <div class="coin-pill"><i class="coin"></i><span data-coins>0</span></div>
-      <button id="btn-sound" class="icon-btn" aria-label="Sound">♪</button>
+      <div class="tools">
+        <button id="btn-full" class="icon-btn" aria-label="Fullscreen" hidden><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="btn-sound" class="icon-btn" aria-label="Sound">♪</button>
+      </div>
     </div>
     <div class="spacer"></div>
     <div class="panel">
@@ -3388,6 +3443,7 @@ function buildUI(root) {
       <h2 class="verdict small">Paused</h2>
       <button id="btn-resume" class="btn primary">Resume</button>
       <button id="btn-quit" class="btn">Leave battle</button>
+      <p class="keys">Steer with the mouse or A / D. Space calls the airstrike, P pauses, F toggles fullscreen.</p>
     </div>
   </section>`;
 }
@@ -3484,8 +3540,9 @@ function renderArmory(save, onBuy) {
     if (o.kind === 'upgrade') stat = `${it.desc} <em>Level ${o.lvl}</em>`;
     return `<div class="row ${cls}">${o.kind === 'upgrade' ? '' : thumb(it.id)}<div class="row-text"><strong>${it.name}</strong><span>${stat}</span></div>${action}</div>`;
   };
+  // Each kind is its own shelf: stacked on a phone, side by side on a wide screen.
   const section = (title, kind) =>
-    `<h3>${title}</h3>` + offers.map((o, i) => (o.kind === kind ? row(o, i) : '')).join('');
+    `<section class="shelf"><h3>${title}</h3>` + offers.map((o, i) => (o.kind === kind ? row(o, i) : '')).join('') + '</section>';
   const nu = nextUnlock(save);
   list.innerHTML =
     (nu ? `<p class="next-unlock">Next unlock: <b>${nu.name}</b> at level ${nu.unlock}</p>` : '') +
@@ -3577,8 +3634,10 @@ function toast(text, ms = 1600) {
   toastTimer = setTimeout(() => (t.hidden = true), ms);
 }
 
-function setHint(on) {
-  qs('#hint').hidden = !on;
+function setHint(on, mouse) {
+  const h = qs('#hint');
+  if (on) h.innerHTML = (mouse ? 'Move the mouse to steer, or use A and D.' : 'Drag left and right to steer.') + '<br>Your squad fires on its own.';
+  h.hidden = !on;
 }
 
 return { buildUI, show, renderHome, renderArmory, renderResult, updateHud, toast, setHint };
@@ -3677,8 +3736,9 @@ function startBattle() {
   if (!sim || sim.t > 0) prepare();
   state = 'play';
   show(null);
+  mouse.active = false;
   if (!save.seenHelp) {
-    setHint(true);
+    setHint(true, finePointer.matches);
     hintTimer = 4;
   }
   strikeReady = false;
@@ -3765,6 +3825,12 @@ function frame(ms) {
   if (state === 'play' || state === 'ending') {
     if (keys.left) sim.targetX -= 13 * dt;
     if (keys.right) sim.targetX += 13 * dt;
+    if (mouse.active && state === 'play') {
+      // The squad heads for the spot on the road under the cursor. Worked out
+      // every frame, because the camera drifts as the squad moves.
+      const rx = renderer.roadX((mouse.x - stage.getBoundingClientRect().left) * renderer.dpr);
+      if (rx !== null) sim.targetX = rx;
+    }
     sim.targetX = Math.max(-ROAD_HALF, Math.min(ROAD_HALF, sim.targetX));
     // Big moments (a boss going down) play out in slow motion.
     const pace = fx.slow > 0 ? 0.3 : 1;
@@ -3818,9 +3884,13 @@ function frame(ms) {
 }
 
 // ---- controls ----
+// A mouse steers by position, with no button held; a finger drags.
+const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+const mouse = { x: 0, active: false };
 let drag = null;
 stage.addEventListener('pointerdown', (e) => {
-  if (state !== 'play' || e.target.closest('button')) return;
+  if (state !== 'play' || e.target.closest('button') || e.pointerType === 'mouse') return;
+  mouse.active = false;
   drag = { id: e.pointerId, x: e.clientX, start: sim.targetX };
   try {
     stage.setPointerCapture(e.pointerId);
@@ -3830,8 +3900,18 @@ stage.addEventListener('pointerdown', (e) => {
   if (hintTimer > 0) hintTimer = Math.min(hintTimer, 0.6);
 });
 stage.addEventListener('pointermove', (e) => {
+  if (e.pointerType === 'mouse') {
+    mouse.x = e.clientX;
+    mouse.active = true;
+    if (state === 'play' && hintTimer > 0) hintTimer = Math.min(hintTimer, 0.6);
+    return;
+  }
   if (!drag || drag.id !== e.pointerId || state !== 'play') return;
-  const w = stage.clientWidth || 1;
+  // On a wide screen the road is only part of the view: a drag covers the
+  // road's width on screen, not the whole window's.
+  const a = renderer.wide && renderer.project(-ROAD_HALF, 0, 0);
+  const b = renderer.wide && renderer.project(ROAD_HALF, 0, 0);
+  const w = a && b ? Math.max(200, ((b.x - a.x) / renderer.dpr) * 1.35) : stage.clientWidth || 1;
   sim.targetX = Math.max(-ROAD_HALF, Math.min(ROAD_HALF, drag.start + ((e.clientX - drag.x) / w) * ROAD_HALF * 2 * 1.35));
 });
 const endDrag = (e) => {
@@ -3839,18 +3919,32 @@ const endDrag = (e) => {
 };
 stage.addEventListener('pointerup', endDrag);
 stage.addEventListener('pointercancel', endDrag);
+function toggleFullscreen() {
+  const app = document.getElementById('app');
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (app.requestFullscreen) app.requestFullscreen().catch(() => {});
+  } catch (err) {
+    /* fullscreen is optional */
+  }
+}
+
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
-  if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
-  if (e.key === 'Escape' && state === 'play') pause();
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (k === 'ArrowLeft' || k === 'a') { keys.left = true; mouse.active = false; }
+  if (k === 'ArrowRight' || k === 'd') { keys.right = true; mouse.active = false; }
+  if ((k === 'Escape' || k === 'p') && state === 'play') pause();
+  else if (k === 'p' && state === 'pause') resume();
+  if (k === 'f' && !e.repeat && !e.ctrlKey && !e.metaKey) toggleFullscreen();
   if (e.key === ' ' && state === 'play') {
     e.preventDefault();
     callStrike();
   }
 });
 window.addEventListener('keyup', (e) => {
-  if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
-  if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (k === 'ArrowLeft' || k === 'a') keys.left = false;
+  if (k === 'ArrowRight' || k === 'd') keys.right = false;
 });
 
 function pause() {
@@ -3872,11 +3966,15 @@ el('btn-back').addEventListener('click', () => {
 el('btn-next').addEventListener('click', startBattle);
 el('btn-pause').addEventListener('click', pause);
 el('btn-strike').addEventListener('click', callStrike);
-el('btn-resume').addEventListener('click', () => {
+function resume() {
   state = 'play';
   lastT = 0;
   show(null);
-});
+}
+el('btn-resume').addEventListener('click', resume);
+// Fullscreen is offered only where the browser allows it.
+el('btn-full').hidden = !document.fullscreenEnabled;
+el('btn-full').addEventListener('click', toggleFullscreen);
 el('btn-quit').addEventListener('click', goHome);
 el('btn-sound').addEventListener('click', () => {
   save.sound = !save.sound;

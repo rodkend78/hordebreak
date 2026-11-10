@@ -17,15 +17,18 @@ function buildUI(root) {
     </div>
     <div id="boss-bar" class="boss-bar" hidden><span>BOSS</span><div class="bar foe"><div id="boss-fill" class="bar-fill"></div></div></div>
     <div id="hud-buffs" class="buffs"></div>
-    <button id="btn-strike" class="strike" hidden aria-label="Call airstrike"><span class="strike-fill"></span><span class="strike-label">Strike</span></button>
+    <button id="btn-strike" class="strike" hidden aria-label="Call airstrike"><span class="strike-fill"></span><span class="strike-label">Strike<kbd class="strike-key">Space</kbd></span></button>
     <div id="toast" class="toast" hidden></div>
-    <div id="hint" class="hint" hidden>Drag left and right to steer.<br>Your squad fires on its own.</div>
+    <div id="hint" class="hint" hidden></div>
   </div>
 
   <section id="screen-home" class="screen home" hidden>
     <div class="topline">
       <div class="coin-pill"><i class="coin"></i><span data-coins>0</span></div>
-      <button id="btn-sound" class="icon-btn" aria-label="Sound">♪</button>
+      <div class="tools">
+        <button id="btn-full" class="icon-btn" aria-label="Fullscreen" hidden><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="btn-sound" class="icon-btn" aria-label="Sound">♪</button>
+      </div>
     </div>
     <div class="spacer"></div>
     <div class="panel">
@@ -66,6 +69,7 @@ function buildUI(root) {
       <h2 class="verdict small">Paused</h2>
       <button id="btn-resume" class="btn primary">Resume</button>
       <button id="btn-quit" class="btn">Leave battle</button>
+      <p class="keys">Steer with the mouse or A / D. Space calls the airstrike, P pauses, F toggles fullscreen.</p>
     </div>
   </section>`;
 }
@@ -162,8 +166,9 @@ function renderArmory(save, onBuy) {
     if (o.kind === 'upgrade') stat = `${it.desc} <em>Level ${o.lvl}</em>`;
     return `<div class="row ${cls}">${o.kind === 'upgrade' ? '' : thumb(it.id)}<div class="row-text"><strong>${it.name}</strong><span>${stat}</span></div>${action}</div>`;
   };
+  // Each kind is its own shelf: stacked on a phone, side by side on a wide screen.
   const section = (title, kind) =>
-    `<h3>${title}</h3>` + offers.map((o, i) => (o.kind === kind ? row(o, i) : '')).join('');
+    `<section class="shelf"><h3>${title}</h3>` + offers.map((o, i) => (o.kind === kind ? row(o, i) : '')).join('') + '</section>';
   const nu = nextUnlock(save);
   list.innerHTML =
     (nu ? `<p class="next-unlock">Next unlock: <b>${nu.name}</b> at level ${nu.unlock}</p>` : '') +
@@ -255,8 +260,10 @@ function toast(text, ms = 1600) {
   toastTimer = setTimeout(() => (t.hidden = true), ms);
 }
 
-function setHint(on) {
-  qs('#hint').hidden = !on;
+function setHint(on, mouse) {
+  const h = qs('#hint');
+  if (on) h.innerHTML = (mouse ? 'Move the mouse to steer, or use A and D.' : 'Drag left and right to steer.') + '<br>Your squad fires on its own.';
+  h.hidden = !on;
 }
 
 return { buildUI, show, renderHome, renderArmory, renderResult, updateHud, toast, setHint };

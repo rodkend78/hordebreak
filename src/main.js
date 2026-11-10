@@ -89,8 +89,9 @@ function startBattle() {
   if (!sim || sim.t > 0) prepare();
   state = 'play';
   show(null);
+  mouse.active = false;
   if (!save.seenHelp) {
-    setHint(true);
+    setHint(true, finePointer.matches);
     hintTimer = 4;
   }
   strikeReady = false;
@@ -177,6 +178,12 @@ function frame(ms) {
   if (state === 'play' || state === 'ending') {
     if (keys.left) sim.targetX -= 13 * dt;
     if (keys.right) sim.targetX += 13 * dt;
+    if (mouse.active && state === 'play') {
+      // The squad heads for the spot on the road under the cursor. Worked out
+      // every frame, because the camera drifts as the squad moves.
+      const rx = renderer.roadX((mouse.x - stage.getBoundingClientRect().left) * renderer.dpr);
+      if (rx !== null) sim.targetX = rx;
+    }
     sim.targetX = Math.max(-ROAD_HALF, Math.min(ROAD_HALF, sim.targetX));
     // Big moments (a boss going down) play out in slow motion.
     const pace = fx.slow > 0 ? 0.3 : 1;
@@ -230,9 +237,13 @@ function frame(ms) {
 }
 
 // ---- controls ----
+// A mouse steers by position, with no button held; a finger drags.
+const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+const mouse = { x: 0, active: false };
 let drag = null;
 stage.addEventListener('pointerdown', (e) => {
-  if (state !== 'play' || e.target.closest('button')) return;
+  if (state !== 'play' || e.target.closest('button') || e.pointerType === 'mouse') return;
+  mouse.active = false;
   drag = { id: e.pointerId, x: e.clientX, start: sim.targetX };
   try {
     stage.setPointerCapture(e.pointerId);
@@ -242,8 +253,18 @@ stage.addEventListener('pointerdown', (e) => {
   if (hintTimer > 0) hintTimer = Math.min(hintTimer, 0.6);
 });
 stage.addEventListener('pointermove', (e) => {
+  if (e.pointerType === 'mouse') {
+    mouse.x = e.clientX;
+    mouse.active = true;
+    if (state === 'play' && hintTimer > 0) hintTimer = Math.min(hintTimer, 0.6);
+    return;
+  }
   if (!drag || drag.id !== e.pointerId || state !== 'play') return;
-  const w = stage.clientWidth || 1;
+  // On a wide screen the road is only part of the view: a drag covers the
+  // road's width on screen, not the whole window's.
+  const a = renderer.wide && renderer.project(-ROAD_HALF, 0, 0);
+  const b = renderer.wide && renderer.project(ROAD_HALF, 0, 0);
+  const w = a && b ? Math.max(200, ((b.x - a.x) / renderer.dpr) * 1.35) : stage.clientWidth || 1;
   sim.targetX = Math.max(-ROAD_HALF, Math.min(ROAD_HALF, drag.start + ((e.clientX - drag.x) / w) * ROAD_HALF * 2 * 1.35));
 });
 const endDrag = (e) => {
@@ -251,18 +272,32 @@ const endDrag = (e) => {
 };
 stage.addEventListener('pointerup', endDrag);
 stage.addEventListener('pointercancel', endDrag);
+function toggleFullscreen() {
+  const app = document.getElementById('app');
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (app.requestFullscreen) app.requestFullscreen().catch(() => {});
+  } catch (err) {
+    /* fullscreen is optional */
+  }
+}
+
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
-  if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
-  if (e.key === 'Escape' && state === 'play') pause();
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (k === 'ArrowLeft' || k === 'a') { keys.left = true; mouse.active = false; }
+  if (k === 'ArrowRight' || k === 'd') { keys.right = true; mouse.active = false; }
+  if ((k === 'Escape' || k === 'p') && state === 'play') pause();
+  else if (k === 'p' && state === 'pause') resume();
+  if (k === 'f' && !e.repeat && !e.ctrlKey && !e.metaKey) toggleFullscreen();
   if (e.key === ' ' && state === 'play') {
     e.preventDefault();
     callStrike();
   }
 });
 window.addEventListener('keyup', (e) => {
-  if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
-  if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (k === 'ArrowLeft' || k === 'a') keys.left = false;
+  if (k === 'ArrowRight' || k === 'd') keys.right = false;
 });
 
 function pause() {
@@ -284,11 +319,15 @@ el('btn-back').addEventListener('click', () => {
 el('btn-next').addEventListener('click', startBattle);
 el('btn-pause').addEventListener('click', pause);
 el('btn-strike').addEventListener('click', callStrike);
-el('btn-resume').addEventListener('click', () => {
+function resume() {
   state = 'play';
   lastT = 0;
   show(null);
-});
+}
+el('btn-resume').addEventListener('click', resume);
+// Fullscreen is offered only where the browser allows it.
+el('btn-full').hidden = !document.fullscreenEnabled;
+el('btn-full').addEventListener('click', toggleFullscreen);
 el('btn-quit').addEventListener('click', goHome);
 el('btn-sound').addEventListener('click', () => {
   save.sound = !save.sound;

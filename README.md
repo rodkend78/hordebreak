@@ -12,11 +12,17 @@ libraries, no image or sound files. Open it in a browser to play.
 
 ## Controls
 
-| Action | Touch | Keyboard |
+| Action | Touch | Mouse and keyboard |
 | --- | --- | --- |
-| Steer | Drag left and right | Arrow keys or A / D |
-| Airstrike (level 3+, once charged) | Tap **Strike** | Space |
-| Pause | Tap **II** | Esc |
+| Steer | Drag left and right | Move the mouse, or arrow keys / A and D |
+| Airstrike (level 3+, once charged) | Tap **Strike** | Space, or click **Strike** |
+| Pause | Tap **II** | Esc or P |
+| Fullscreen | | F, or the button on the home screen |
+
+On a phone the game plays in a tall view from above. In a wide window
+(at least 820 by 560, wider than tall) it fills the window with a lower camera
+that looks further up the road, the menus stand in a column on the left, and
+the armory shows its three shelves side by side.
 
 ## Build
 
