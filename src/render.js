@@ -366,7 +366,10 @@ class Renderer {
 
   resize() {
     const rect = this.canvas.getBoundingClientRect();
-    const dpr = Math.min(this.maxDpr, window.devicePixelRatio || 1);
+    // A large desktop window at full pixel density is more than the scene needs:
+    // cap the total number of pixels drawn.
+    const fit = Math.sqrt(3.6e6 / Math.max(1, rect.width * rect.height));
+    const dpr = Math.max(1, Math.min(this.maxDpr, window.devicePixelRatio || 1, fit));
     const w = Math.max(2, Math.round(rect.width * dpr));
     const h = Math.max(2, Math.round(rect.height * dpr));
     if (w === this.w && h === this.h) return;
@@ -377,14 +380,18 @@ class Renderer {
 
   camera(camX, shake) {
     const aspect = this.w / this.h;
-    const fovy = (aspect < 0.8 ? 60 : 46) * (Math.PI / 180);
-    let H = 13.5, D = 9.5;
+    // A wide window (desktop) gets a lower camera that looks further up the
+    // road; a tall one (phone) looks down from above so the road fills it.
+    const wide = aspect >= 1;
+    this.wide = wide;
+    const fovy = (aspect < 0.8 ? 60 : wide ? 42 : 46) * (Math.PI / 180);
+    let H = wide ? 9.8 : 13.5, D = wide ? 14 : 9.5;
     const need = ROAD_HALF + 0.3;
     const half = Math.hypot(H, D) * Math.tan(fovy / 2) * aspect;
     const s = Math.max(1, need / half);
     H *= s; D *= s;
     const eye = [camX * 0.35 + shake[0], H + shake[1], D];
-    const tgt = [camX * 0.2, 0, -(8 + 4 * s)];
+    const tgt = wide ? [camX * 0.25, 0.4, -11.5] : [camX * 0.2, 0, -(8 + 4 * s)];
     const view = lookAt(eye, tgt, [0, 1, 0]);
     const proj = perspective(fovy, aspect, 0.5, 160);
     this.vp = mul(proj, view);
@@ -392,6 +399,15 @@ class Renderer {
     this.right = [view[0], view[4], view[8]];
     this.up = [view[1], view[5], view[9]];
     this.pxPerUnit = this.h / 2 / Math.tan(fovy / 2);
+  }
+
+  // Where a screen position (canvas pixels from the left) falls across the
+  // road at the squad's depth. Used for steering with the mouse.
+  roadX(px) {
+    const a = this.project(-ROAD_HALF, 0, 0);
+    const b = this.project(ROAD_HALF, 0, 0);
+    if (!a || !b || b.x - a.x < 1) return null;
+    return -ROAD_HALF + ((px - a.x) / (b.x - a.x)) * 2 * ROAD_HALF;
   }
 
   // World point -> screen pixels (and how big one world unit is there).

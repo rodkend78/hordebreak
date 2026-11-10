@@ -333,6 +333,42 @@ html, body {
 .stars i.on { background: var(--accent); animation: star-in 0.35s ease-out backwards; }
 @keyframes star-in { from { transform: scale(2.2) rotate(-25deg); opacity: 0; } to { transform: none; opacity: 1; } }
 
+.tools { display: flex; gap: 8px; }
+.icon-btn svg { display: block; margin: auto; }
+.strike-key { display: none; }
+.keys { display: none; margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+#app:fullscreen { background: var(--ink); }
+
+/* ---------- desktop: a wide window gets the whole view ----------
+   The road runs up the middle; menus stand in a column on the left so the
+   squad stays in sight, and the armory lays its three shelves side by side. */
+@media (min-width: 820px) and (min-height: 560px) and (min-aspect-ratio: 1/1) {
+  #stage { width: 100%; aspect-ratio: auto; }
+  .hud-top, .boss-bar { width: 100%; max-width: 860px; margin-inline: auto; }
+  .hud-top { padding-top: 20px; }
+  .buffs { left: 28px; bottom: 28px; }
+  .chip { font-size: 13px; }
+  .strike { right: 28px; bottom: 28px; width: 104px; height: 104px; font-size: 15px; }
+  .strike-label { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .strike-key { display: block; padding: 1px 7px; border-radius: 5px; border: 1px solid currentColor; font: 700 10px var(--display); letter-spacing: 0.1em; opacity: 0.75; }
+  .toast { top: 14%; font-size: 20px; }
+  .hint { bottom: 14%; font-size: 20px; }
+  .keys { display: block; }
+
+  .screen { padding: 28px 40px 36px; background: linear-gradient(to right, rgba(11, 18, 48, 0.95) 0, rgba(11, 18, 48, 0.88) 24%, rgba(11, 18, 48, 0.3) 48%, rgba(11, 18, 48, 0) 64%); }
+  .screen .panel { width: 440px; max-width: 42vw; gap: 14px; }
+  .title { font-size: 76px; }
+  .brief { font-size: 16px; }
+  .result { background: linear-gradient(to right, rgba(11, 18, 48, 0.96) 0, rgba(11, 18, 48, 0.9) 26%, rgba(11, 18, 48, 0.35) 52%, rgba(11, 18, 48, 0.1) 70%); }
+  .pause { align-items: center; background: rgba(11, 18, 48, 0.82); }
+  .pause .panel { width: 380px; }
+
+  .armory { background: var(--ink); padding: 28px 40px 0; }
+  .armory .topline { width: 100%; max-width: 1240px; margin-inline: auto; }
+  .list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 24px; align-content: start; width: 100%; max-width: 1240px; margin: 12px auto 0; padding: 0 0 32px; }
+  .next-unlock { grid-column: 1 / -1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .toast.pop, .strike.ready, .stars i.on { animation: none; }
 }
