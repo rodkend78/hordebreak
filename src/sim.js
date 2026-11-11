@@ -8,6 +8,7 @@
 
 const { ROAD_HALF, SCROLL, DT, VIEW, BULLET_RANGE, MAX_COUNT, ENEMIES, roadLimit, BOSS_LIMIT, STRIKE_FROM, STRIKE_PER_LEVEL, starsFor, STAR_BONUS } = __m["src/data.js"];
 const { mulberry32 } = __m["src/rng.js"];
+const MAX_VOLLEYS = 30; // volleys a second the squad can loose; see volley()
 const FUNNEL = 30; // enemies start converging on the squad at this distance
 const GX = 12;
 const GZ = VIEW + 4;
@@ -156,7 +157,12 @@ class Sim {
 
   volley(R) {
     const lo = this.lo;
-    const interval = lo.interval / this.rateMul;
+    // The squad looses at most MAX_VOLLEYS a second (one step can only fire
+    // once). A faster rate than that arrives as heavier bullets instead, so
+    // every fire-rate upgrade and gate still pays out in full.
+    const want = lo.interval / this.rateMul;
+    const interval = Math.max(1 / MAX_VOLLEYS, want);
+    const heavy = interval / want;
     this.fireT += interval;
     if (this.fireT < 0) this.fireT = 0;
     const pellets = lo.pellets + this.extraPellets;
@@ -164,7 +170,7 @@ class Sim {
     // several troops, so a 300-strong squad costs the same as a 10-strong one.
     const cap = Math.max(3, Math.min(14, Math.floor((70 * interval) / pellets)));
     const B = Math.min(this.count, cap);
-    const dmg = (lo.dmg * this.dmgMul * this.handicap * this.count) / B;
+    const dmg = (lo.dmg * this.dmgMul * this.handicap * this.count * heavy) / B;
     const fan = pellets > 1 ? 0.085 : 0;
     for (let i = 0; i < B; i++) {
       const ox = this.x + (B === 1 ? 0 : ((i + 0.5) / B) * 2 - 1) * R * 0.9 + (this.rng() - 0.5) * 0.3;

@@ -44,9 +44,9 @@ const INFANTRY = [
 // ---- Repeatable upgrades ----
 const UPGRADES = [
   { id: 'dmg', name: 'Firepower', desc: '+12% damage', base: 40, growth: 1.3, max: 9999 },
-  { id: 'rate', name: 'Rapid Fire', desc: '+5% fire rate', base: 60, growth: 1.38, max: 20 },
-  { id: 'squad', name: 'Recruitment', desc: '+2 starting troops', base: 50, growth: 1.27, max: 60 },
-  { id: 'coin', name: 'Bounty', desc: '+8% coins', base: 90, growth: 1.45, max: 15 },
+  { id: 'rate', name: 'Rapid Fire', desc: '+5% fire rate', base: 60, growth: 1.38, max: 100 },
+  { id: 'squad', name: 'Recruitment', desc: '+2 starting troops', base: 50, growth: 1.27, max: 150 },
+  { id: 'coin', name: 'Bounty', desc: '+8% coins', base: 90, growth: 1.45, max: 100 },
 ];
 
 // ---- Enemies. hp is in multiples of one grunt at the current level.
