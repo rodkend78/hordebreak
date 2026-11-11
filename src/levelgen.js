@@ -5,7 +5,7 @@
 // "mercy" (0..1) scales the threat down. It stays at 1 unless the pre-flight
 // check in bot.js finds the level cannot be won with the player's loadout.
 
-const { ROAD_HALF, ENEMIES, refAt, isBossLevel, levelReward } = __m["src/data.js"];
+const { ROAD_HALF, ENEMIES, SHELL_FROM, refAt, isBossLevel, levelReward } = __m["src/data.js"];
 const { mulberry32, hashSeed } = __m["src/rng.js"];
 const TENSION_MIN = 0.46;
 const TENSION_MAX = 1.0;
@@ -33,7 +33,7 @@ function generateLevel(n, seed, mercy = 1) {
   const L = {
     n, seed, mercy, length, tension, hpUnit,
     boss: null,
-    spawns: [], gates: [], barriers: [], crates: [],
+    spawns: [], gates: [], barriers: [], crates: [], shells: [],
     reward: levelReward(n),
     refStart: ref.startCount,
   };
@@ -67,6 +67,10 @@ function generateLevel(n, seed, mercy = 1) {
       heavy.push('giant');
       budget -= ENEMIES.giant.hp;
     }
+    if (types.includes('warlord') && (flavor === 'block' || flavor === 'final') && rng() < 0.55) {
+      heavy.push('warlord');
+      budget -= ENEMIES.warlord.hp;
+    }
     if (types.includes('brute')) {
       const k = Math.floor((budget * rr(0.1, 0.22)) / ENEMIES.brute.hp);
       for (let i = 0; i < Math.min(k, 8); i++) heavy.push('brute');
@@ -78,6 +82,7 @@ function generateLevel(n, seed, mercy = 1) {
     if (types.includes('runner')) mix.push(['runner', flavor === 'rush' ? 1.2 : 0.22]);
     if (types.includes('shield')) mix.push(['shield', 0.16]);
     if (types.includes('bomber')) mix.push(['bomber', 0.07]);
+    if (types.includes('dire')) mix.push(['dire', flavor === 'rush' ? 0.5 : 0.1]);
     const wsum = mix.reduce((a, m) => a + m[1], 0);
     const bodies = [];
     for (const [t, w] of mix) {
@@ -221,6 +226,7 @@ function generateLevel(n, seed, mercy = 1) {
     if (n >= 2 && room > 34 && lastKind !== 'corridor' && (!usedCorridor || rng() < 0.5)) opts.push('corridor', 'corridor');
     if (n >= 3 && lastKind !== 'crate' && lastKind !== 'gate') opts.push('crate');
     if (n >= 3 && lastKind !== 'horde') opts.push('rush');
+    if (n >= SHELL_FROM && lastKind !== 'shell' && room > 30) opts.push('shell');
     const kind = pick(opts);
     if (kind === 'horde') {
       s += horde(s, -ROAD_HALF + 0.4, ROAD_HALF - 0.4, rr(4.0, 5.2), 'block') + 15;
@@ -231,6 +237,11 @@ function generateLevel(n, seed, mercy = 1) {
     } else if (kind === 'gate') {
       gatePair(s);
       s += 14;
+    } else if (kind === 'shell') {
+      // A stretch under shellfire: rounds land where the squad is heading, one after another.
+      L.shells.push({ s, count: Math.max(3, Math.round(rr(5, 7) * thin)), every: rr(0.6, 0.8) });
+      exp = Math.max(3, exp * 0.94);
+      s += 22;
     } else if (kind === 'corridor') {
       s += corridor(s) + 13;
       usedCorridor = true;

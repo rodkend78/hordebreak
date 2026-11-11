@@ -379,15 +379,19 @@ def _helmet(m, tier):
     for s in (-1, 1):
         m.lathe([(0.075, 0.0), (0.06, 0.04 * s)], (s * R * 0.97, 0, cu - 0.02), axis='x', seg=8, col=ARMOR)  # ear discs
     if tier >= 5:
-        m.prism([(0.0, cu + 0.27), (0.07, cu + 0.44), (-0.08, cu + 0.56), (-0.2, cu + 0.36)], 0.06, col=BODY_L, tint=1, bevel=0.012)  # commander's fin
+        tall = 0.16 if tier == 7 else 0.0  # the praetorian's plume stands higher
+        m.prism([(0.0, cu + 0.27), (0.07, cu + 0.44 + tall), (-0.08, cu + 0.56 + tall), (-0.2, cu + 0.36)], 0.06, col=BODY_L, tint=1, bevel=0.012)  # commander's fin
+    if tier == 8:
+        m.lathe([(0.2, -0.014), (0.228, 0.0), (0.2, 0.014)], P(0, 0, cu + 0.44), seg=12, cap=False, col=LIT, tint=0.75, glow=1)  # halo
     m.bone = None  # back to placing parts by position
 
 
 def trooper(tier):
     """Six ranks, from light rifleman to caped commander."""
     m = Model('inf%d' % tier, face=-1, rig=RIG_TROOPER)
-    wide = 1.0 + 0.06 * max(0, tier - 2)
-    plate = ARMOR_L if tier == 2 else ARMOR
+    wide = min(1.18, 1.0 + 0.06 * max(0, tier - 2)) + 0.02 * max(0, tier - 5)
+    plate = ARMOR_L if tier in (2, 6) else ARMOR_D if tier == 8 else ARMOR
+    top = ARMOR_D if tier == 8 else ARMOR_L  # the high ranks' box pauldrons
     th = dict(bone='thigh_r', mirror=True)
     sh = dict(bone='shin_r', mirror=True)
     m.limb(P(0.13, 0, 0.5), P(0.135, 0, 0.26), (0.2, 0.23), (0.18, 0.21), col=SUIT, bevel=0.03, **th)
@@ -423,8 +427,8 @@ def trooper(tier):
     elif tier == 4:
         for u in (0.86, 0.78):
             m.box(P(0, f, u), (0.16, 0.02, 0.04), **LIT_KW)
-    elif tier == 5:
-        light(m, P(0, f - 0.005, 0.83), 0.1, axis='f', col=LIT, tint=0.75, rim=ARMOR_D)
+    elif tier >= 5:
+        light(m, P(0, f - 0.005, 0.83), 0.1 + 0.01 * (tier - 5), axis='f', col=LIT, tint=0.75, rim=ARMOR_D)
     # Pauldrons grow with rank.
     sx = 0.27 * wide
     if tier == 0:
@@ -441,10 +445,18 @@ def trooper(tier):
         m.box(P(sx + 0.07, 0, 0.89), (0.2, 0.3, 0.09), col=ARMOR_D, bevel=0.03, mirror=True)
         m.box(P(sx + 0.04, 0.0, 1.155), (0.05, 0.2, 0.025), mirror=True, **LIT_KW)  # lit seam over the top
     else:
-        m.box(P(sx + 0.07, 0, 1.01), (0.3, 0.34, 0.2), taper=(0.8, 0.85), col=ARMOR_L, bevel=0.045, mirror=True)
+        m.box(P(sx + 0.07, 0, 1.01), (0.3, 0.34, 0.2), taper=(0.8, 0.85), col=top, bevel=0.045, mirror=True)
         m.box(P(sx + 0.07, 0, 0.89), (0.24, 0.3, 0.07), col=ARMOR_D, bevel=0.025, mirror=True)
         m.box(P(sx + 0.07, 0.165, 1.02), (0.15, 0.02, 0.045), mirror=True, **LIT_KW)
         m.box(P(sx + 0.07, 0.0, 1.115), (0.06, 0.18, 0.02), mirror=True, **LIT_KW)
+        if tier == 6:  # tower plates standing off the shoulders
+            m.box(P(sx + 0.215, 0, 1.1), (0.06, 0.3, 0.36), col=ARMOR_L, bevel=0.02, mirror=True)
+            m.box(P(sx + 0.25, 0, 1.1), (0.012, 0.16, 0.2), mirror=True, **LIT_KW)
+        elif tier == 7:  # gilded rims and spikes
+            m.box(P(sx + 0.07, 0, 1.12), (0.31, 0.35, 0.03), col=GOLD, bevel=0.01, mirror=True)
+            m.spike(P(sx + 0.09, 0, 1.12), P(sx + 0.2, 0, 1.4), 0.11, seg=4, col=GOLD, mirror=True)
+        elif tier == 8:  # a lit core in each shoulder
+            light(m, P(sx + 0.07, 0, 1.118), 0.12, axis='u', col=LIT, tint=0.75, rim=PLATE_D, mirror=True)
     # What they carry on their backs.
     if tier == 0:
         m.box(P(0, -0.19, 0.78), (0.26, 0.14, 0.28), col=SUIT_D, bevel=0.035)
@@ -453,19 +465,27 @@ def trooper(tier):
             m.lathe([(0.085, 0.0), (0.1, 0.03), (0.1, 0.3), (0.06, 0.36)], P(s * 0.11, -0.23, 0.6), seg=8, col=LIT, tint=0.75, glow=0.6)
             m.lathe([(0.108, 0.0), (0.108, 0.05)], P(s * 0.11, -0.23, 0.72), seg=8, col=ARMOR_D)
         m.box(P(0, -0.17, 0.8), (0.3, 0.08, 0.24), col=ARMOR_D, bevel=0.025)
-    elif tier == 5:
+    elif tier >= 5:
         m.box(P(0, -0.19, 0.84), (0.3, 0.14, 0.22), col=ARMOR_D, bevel=0.03)
-        m.prism([(-0.36, 1.0), (0.36, 1.0), (0.44, 0.2), (0.2, 0.12), (0, 0.22), (-0.2, 0.12), (-0.44, 0.2)], 0.035, at=-0.3, plane='xu',
-                col=BODY, tint=1, bevel=0, rot=(-9, 0, 0), rot_at=P(0, -0.3, 1.0), bone='chest')  # cape
-        m.prism([(-0.44, 0.2), (-0.2, 0.12), (0, 0.22), (0.2, 0.12), (0.44, 0.2), (0.42, 0.29), (0.2, 0.21), (0, 0.31), (-0.2, 0.21), (-0.42, 0.29)], 0.04,
-                at=-0.3, plane='xu', col=BODY_L, tint=1, bevel=0, rot=(-9, 0, 0), rot_at=P(0, -0.3, 1.0), detail=True, bone='chest')  # cape trim
+        if tier == 6:  # twin banners
+            for sgn in (-1, 1):
+                m.prism([(-0.25, 0.92), (-0.3, 1.72), (-0.44, 1.6), (-0.37, 0.9)], 0.035, at=sgn * 0.15, col=BODY, tint=1, bevel=0.008, bone='chest')
+                m.prism([(-0.3, 1.72), (-0.44, 1.6), (-0.43, 1.52), (-0.3, 1.62)], 0.04, at=sgn * 0.15, bevel=0, bone='chest', col=LIT, tint=0.75, glow=1)
+        elif tier == 8:  # blades of light
+            m.prism([(0.12, 1.02), (0.64, 1.56), (0.74, 1.42), (0.32, 0.86)], 0.03, at=-0.28, plane='xu', col=LIT, tint=0.75, glow=0.9, bevel=0, mirror=True, bone='chest')
+            m.prism([(0.2, 0.84), (0.66, 1.12), (0.72, 0.98), (0.34, 0.7)], 0.03, at=-0.29, plane='xu', col=LIT, tint=0.75, glow=0.9, bevel=0, mirror=True, bone='chest')
+        if tier in (5, 7):
+            m.prism([(-0.36, 1.0), (0.36, 1.0), (0.44, 0.2), (0.2, 0.12), (0, 0.22), (-0.2, 0.12), (-0.44, 0.2)], 0.035, at=-0.3, plane='xu',
+                    col=BODY, tint=1, bevel=0, rot=(-9, 0, 0), rot_at=P(0, -0.3, 1.0), bone='chest')  # cape
+            m.prism([(-0.44, 0.2), (-0.2, 0.12), (0, 0.22), (0.2, 0.12), (0.44, 0.2), (0.42, 0.29), (0.2, 0.21), (0, 0.31), (-0.2, 0.21), (-0.42, 0.29)], 0.04,
+                    at=-0.3, plane='xu', col=BODY_L, tint=1, bevel=0, rot=(-9, 0, 0), rot_at=P(0, -0.3, 1.0), detail=True, bone='chest')  # cape trim
     else:
         m.box(P(0, -0.2, 0.78), (0.3 * wide, 0.17, 0.32), col=ARMOR_D, bevel=0.035)
         m.box(P(0, -0.2, 0.945), (0.16, 0.09, 0.02), **LIT_KW)
         if tier == 4:
             m.box(P(0.09, -0.295, 0.8), (0.06, 0.02, 0.16), mirror=True, **LIT_KW)  # reactor vents
     if tier >= 2:
-        ax = 0.17 if tier != 5 else -0.2
+        ax = 0.17 if tier < 5 else -0.2
         m.limb(P(ax, -0.24, 0.9), P(ax, -0.27, 1.52 if tier < 5 else 1.66), 0.035 if tier < 5 else 0.05, round=True, seg=5, col=ARMOR_D)  # antenna
         m.ball(P(ax, -0.27, 1.55 if tier < 5 else 1.69), 0.04, sub=1, col=LIT, tint=0.75, glow=1)
     m.box(P(0, 0.02, 1.02), (0.2, 0.2, 0.1), col=SUIT_D, bevel=0.02, bone='head')  # neck
@@ -540,6 +560,35 @@ def weapon(kind, arms=True):
             m.limb(P(x + dx, 0.42, u + du), P(x + dx, 0.98, u + du), 0.05, round=True, seg=5, col=GUN)
         m.lathe([(0.118, 0.84), (0.118, 0.9)], P(x, 0, u), axis='f', seg=8, col=GUN2)
         m.ball(P(x, 0.985, u), (0.04, 0.02, 0.04), sub=1, col=LIT, tint=0.75, glow=1)
+    elif kind == 'laser':
+        red = (1.0, 0.32, 0.25)
+        _arms(m, P(x, 0.18, 0.73), P(0.1, 0.5, 0.74))
+        m.box(P(x, 0.2, 0.79), (0.12, 0.42, 0.16), col=GUN2, bevel=0.025)
+        m.box(P(x, -0.04, 0.775), (0.09, 0.16, 0.12), col=GUN, bevel=0.025)
+        m.box(P(x - 0.105, 0.16, 0.74), (0.1, 0.2, 0.16), col=GUN, bevel=0.02)  # power cell
+        m.limb(P(x, 0.4, 0.8), P(x, 0.98, 0.8), 0.06, round=True, seg=6, col=GUN)
+        for f in (0.5, 0.66, 0.82):  # focusing rings
+            m.lathe([(0.075, f), (0.088, f + 0.03), (0.075, f + 0.06)], P(x, 0, 0.8), axis='f', seg=8, cap=False, col=red, glow=1)
+        m.box(P(x, 0.2, 0.875), (0.05, 0.26, 0.02), col=red, glow=1, bevel=0)
+        m.ball(P(x, 1.0, 0.8), (0.05, 0.03, 0.05), sub=1, col=red, glow=1)
+    elif kind == 'cluster':
+        # A three-tube pod on the shoulder.
+        _arms(m, P(0.2, 0.2, 0.86), P(0.1, 0.42, 0.9), re=P(0.32, 0.04, 0.72), le=P(-0.22, 0.24, 0.78))
+        m.box(P(0.2, 0.08, 1.0), (0.32, 0.7, 0.22), col=GUN2, bevel=0.035)
+        m.box(P(0.2, -0.3, 1.0), (0.28, 0.06, 0.18), col=GUN, bevel=0.02)
+        for dx in (-0.095, 0, 0.095):
+            m.lathe([(0.042, 0.4), (0.042, 0.5), (0, 0.62)], P(0.2 + dx, 0, 1.0), axis='f', seg=6, col=(0.9, 0.25, 0.2))  # warheads
+        m.box(P(0.2, 0.2, 0.88), (0.05, 0.07, 0.12), col=GUN, bevel=0.01)
+        m.box(P(0.2, 0.06, 1.115), (0.06, 0.4, 0.02), **LIT_KW)
+    elif kind == 'nova':
+        sun = (1.0, 0.9, 0.55)
+        _arms(m, P(x, 0.14, 0.72), P(0.08, 0.5, 0.72), re=P(0.31, 0.02, 0.7))
+        m.box(P(x, 0.06, 0.77), (0.14, 0.34, 0.2), col=GUN, bevel=0.03)
+        m.lathe([(0.09, 0.2), (0.11, 0.3), (0.08, 0.5), (0.06, 1.0), (0.05, 1.02)], P(x, 0, 0.78), axis='f', seg=8, col=GUN2)
+        for f, r in ((0.36, 0.15), (0.62, 0.12), (0.86, 0.1)):  # emitter rings
+            m.lathe([(r, f), (r + 0.016, f + 0.025), (r, f + 0.05)], P(x, 0, 0.78), axis='f', seg=10, cap=False, col=sun, glow=1)
+        m.ball(P(x, 1.06, 0.78), 0.07, sub=2, col=sun, glow=1)
+        m.ball(P(x, 0.06, 0.9), 0.08, sub=1, col=sun, glow=1)
     elif kind == 'rail':
         cyan = (0.35, 0.85, 1.0)
         _arms(m, P(x, 0.16, 0.73), P(0.1, 0.52, 0.72))
@@ -633,5 +682,6 @@ LOD_ENEMIES = ['grunt', 'runner', 'shield', 'bomber', 'spitter', 'brute']
 INFANTRY = [
     ('recruit', (0.2, 0.62, 1.0)), ('soldier', (0.1, 0.78, 0.86)), ('veteran', (0.16, 0.82, 0.55)),
     ('commando', (0.42, 0.5, 1.0)), ('guard', (0.72, 0.5, 1.0)), ('titan', (1.0, 0.82, 0.25)),
+    ('warden', (0.86, 0.94, 1.0)), ('praetor', (0.34, 0.36, 0.52)), ('archon', (0.25, 0.92, 1.0)),
 ]
-WEAPONS = ['rifle', 'smg', 'shotgun', 'mg', 'rail', 'rocket', 'plasma']
+WEAPONS = ['rifle', 'smg', 'shotgun', 'mg', 'rail', 'rocket', 'plasma', 'laser', 'cluster', 'nova']
