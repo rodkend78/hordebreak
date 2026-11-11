@@ -67,12 +67,12 @@ def sheet(path, items, eye, target, res=(1600, 800), lens=50, samples=20):
 
 if MODE in ('all', 'horde'):
     items = []
-    xs = {'grunt': -4.6, 'runner': -3.3, 'shield': -2.0, 'bomber': -0.7, 'spitter': 0.7, 'brute': 2.3, 'giant': 4.9}
+    xs = {'grunt': -5.0, 'runner': -3.7, 'shield': -2.35, 'bomber': -0.95, 'spitter': 0.45, 'brute': 2.1, 'giant': 4.8}
     for n, x in xs.items():
         fn, tint, sc_ = models.ENEMIES[n]
         items.append((n, tint, (x, 0, 0), 0.0, sc_))
     # close-up front 3/4, then the in-game angle
-    sheet(os.path.join(OUT, 'sheet_horde_front.png'), items, (0.2, -10.5, 2.8), (0.2, 0, 1.0), lens=36)
+    sheet(os.path.join(OUT, 'sheet_horde_front.png'), items, (2.2, -10.8, 2.6), (0.1, 0, 1.0), lens=36)
     sheet(os.path.join(OUT, 'sheet_horde_game.png'), items, (0.5, -6.0, 8.5), (0.3, 0.6, 0.6), lens=34)
 if MODE in ('all', 'boss'):
     fn, tint, sc_ = models.ENEMIES['boss']
@@ -86,7 +86,7 @@ if MODE in ('all', 'squad'):
         items.append(('inf%d' % i, tint, (x, 0, 0), 0.0, 1.0))
         items.append(('w_' + w, tint, (x, 0, 0), 0.0, 1.0))
     items.append(('inf1', models.INFANTRY[1][1], (4.1, 0, 0), 0.0, 1.0)); items.append(('w_plasma', models.INFANTRY[1][1], (4.1, 0, 0), 0.0, 1.0))
-    sheet(os.path.join(OUT, 'sheet_squad_front.png'), items, (2.2, -7.2, 2.6), (0.6, 0, 0.72), lens=46)
+    sheet(os.path.join(OUT, 'sheet_squad_front.png'), items, (-2.0, -8.4, 2.9), (0.6, 0, 0.8), lens=44)
     # in game the squad is seen from behind and above
     sheet(os.path.join(OUT, 'sheet_squad_game.png'), items, (0.5, 4.6, 6.4), (0.5, -0.5, 0.5), lens=40)
 if MODE in ('all', 'props'):
@@ -113,11 +113,11 @@ if MODE in ('all', 'thumbs'):
     for w in models.WEAPONS:
         m = models.weapon(w, arms=False)
         # centre along the barrel, height, length
-        cy, cz, L = {'rifle': (-0.42, 0.79, 1.08), 'smg': (-0.31, 0.76, 0.82), 'shotgun': (-0.41, 0.79, 1.18), 'mg': (-0.45, 0.78, 1.22),
+        cy, cz, L = {'rifle': (-0.42, 0.79, 1.08), 'smg': (-0.31, 0.76, 0.82), 'shotgun': (-0.41, 0.79, 1.18), 'mg': (-0.48, 0.68, 1.12),
                      'rail': (-0.44, 0.79, 1.16), 'rocket': (-0.21, 0.99, 1.26), 'plasma': (-0.34, 0.78, 0.9)}[w]
-        thumb(w, [(m, (1, 1, 1), ())], (4.2, cy - 1.0, cz + 1.1), (0.17, cy, cz), L * 1.04, roll=-28)
+        thumb(w, [(m, (0.3, 0.88, 1.0), ())], (4.2, cy - 1.0, cz + 1.1), (0.17, cy, cz), L * 1.04, roll=-28)
     for i, (iname, tint) in enumerate(models.INFANTRY):
         body = models.trooper(i)
         brecs, _ = collect(body)
         arms = models.weapon('rifle')
-        thumb(iname, [(body, tint, ()), (arms, tint, [brecs])], (-2.4, -4.2, 2.6), (0.0, -0.1, 0.76), 1.5)
+        thumb(iname, [(body, tint, ()), (arms, tint, [brecs])], (-2.4, -4.2, 2.6), (0.0, -0.1, 0.84), 1.66)

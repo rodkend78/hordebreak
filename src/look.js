@@ -5,11 +5,11 @@ const { INFANTRY } = __m["src/data.js"];
 // mesh = which model, col = base colour, s = size, walk = stride speed
 const ENEMY_LOOK = {
   grunt: { mesh: 'grunt', col: [0.95, 0.27, 0.3], s: 1.0, walk: 7.5 },
-  runner: { mesh: 'runner', col: [1.0, 0.5, 0.14], s: 0.98, walk: 15 },
-  brute: { mesh: 'brute', col: [0.7, 0.16, 0.28], s: 1.12, walk: 5 },
+  runner: { mesh: 'runner', col: [1.0, 0.56, 0.2], s: 1.0, walk: 14 },
+  brute: { mesh: 'brute', col: [0.88, 0.22, 0.42], s: 1.12, walk: 5 },
   shield: { mesh: 'shield', col: [0.66, 0.36, 0.95], s: 1.04, walk: 6.5 },
   bomber: { mesh: 'bomber', col: [1.0, 0.78, 0.1], s: 1.05, walk: 13 },
-  giant: { mesh: 'giant', col: [0.56, 0.1, 0.18], s: 1.95, walk: 3.6 },
+  giant: { mesh: 'giant', col: [0.74, 0.16, 0.38], s: 1.95, walk: 3.6 },
   spitter: { mesh: 'spitter', col: [0.42, 0.86, 0.3], s: 1.08, walk: 6 },
 };
 // Crowd types switch to a lighter model beyond this distance.
@@ -28,9 +28,9 @@ const BOSS_SCALE = 3.1;
 // mz/my = where the muzzle of the weapon model sits (ahead of, and above, the trooper's feet).
 const WEAPON_LOOK = {
   rifle: { col: [1.0, 0.8, 0.36], w: 0.075, len: 1.7, flash: 0.6, light: 0.8, casing: true, mz: 0.9, my: 0.73 },
-  smg: { col: [1.0, 0.86, 0.42], w: 0.06, len: 1.2, flash: 0.45, light: 0.6, casing: true, mz: 0.68, my: 0.73 },
-  shotgun: { col: [1.0, 0.62, 0.22], w: 0.085, len: 1.0, flash: 1.0, light: 1.2, casing: true, mz: 0.94, my: 0.75 },
-  mg: { col: [1.0, 0.62, 0.2], w: 0.075, len: 2.2, flash: 0.6, light: 0.9, casing: true, mz: 1.0, my: 0.74 },
+  smg: { col: [1.0, 0.86, 0.42], w: 0.06, len: 1.2, flash: 0.45, light: 0.6, casing: true, mz: 0.66, my: 0.73 },
+  shotgun: { col: [1.0, 0.62, 0.22], w: 0.085, len: 1.0, flash: 1.0, light: 1.2, casing: true, mz: 0.9, my: 0.75 },
+  mg: { col: [1.0, 0.62, 0.2], w: 0.075, len: 2.2, flash: 0.6, light: 0.9, casing: true, mz: 0.92, my: 0.61 },
   rail: { col: [0.35, 0.85, 1.0], w: 0.13, len: 4.5, flash: 0.8, light: 1.1, beam: true, mz: 0.96, my: 0.73 },
   rocket: { col: [1.0, 0.55, 0.18], flash: 0.9, light: 1.0, rocket: true, mz: 0.8, my: 0.91 },
   plasma: { col: [0.9, 0.35, 1.0], w: 0.15, len: 1.3, flash: 0.7, light: 1.0, orb: 0.55, mz: 0.72, my: 0.71 },

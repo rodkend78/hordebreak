@@ -202,7 +202,7 @@ function frame(ms) {
     if (sim.strikeOn && sim.charge >= 1 && !strikeReady) {
       strikeReady = true;
       sound.play('ready');
-      if (!save.seenStrike) toast('Airstrike ready: tap Strike', 2600);
+      if (!save.seenStrike) toast(finePointer.matches ? 'Airstrike ready: press Space' : 'Airstrike ready: tap Strike', 2600);
     } else if (sim.charge < 1) strikeReady = false;
     if (hintTimer > 0) {
       hintTimer -= dt;

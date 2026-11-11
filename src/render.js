@@ -19,7 +19,7 @@ const MESH_VERT = `#version 300 es
 layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNor;
 layout(location=2) in vec4 aCol;   // rgb, tint
-layout(location=3) in vec3 aAnim;  // swing, pivot height, glow
+layout(location=3) in vec4 aAnim;  // swing, pivot height, glow, pivot depth
 layout(location=4) in vec3 iPos;
 layout(location=5) in vec3 iScale;
 layout(location=6) in vec4 iColor; // rgb, yaw
@@ -40,7 +40,7 @@ void main() {
   vec3 n = aNor;
   if (aAnim.x != 0.0 && iMisc.x > 0.0) {
     float a = aAnim.x * sin(uTime * iMisc.x + iFx.z);
-    p.y -= aAnim.y; p = rotX(p, a); p.y += aAnim.y;
+    p.yz -= aAnim.yw; p = rotX(p, a); p.yz += aAnim.yw;
     n = rotX(n, a);
   }
   p *= iScale;
@@ -244,7 +244,7 @@ class Batch {
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.idx, gl.STATIC_DRAW);
     }
     const vb = VERT_SIZE * 4;
-    [[0, 3, 0], [1, 3, 12], [2, 4, 24], [3, 3, 40]].forEach(([loc, size, off]) => {
+    [[0, 3, 0], [1, 3, 12], [2, 4, 24], [3, 4, 40]].forEach(([loc, size, off]) => {
       gl.enableVertexAttribArray(loc);
       gl.vertexAttribPointer(loc, size, gl.FLOAT, false, vb, off);
     });
