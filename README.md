@@ -62,6 +62,9 @@ Characters, weapons and props are authored in Blender from Python
 (`art/models.py`, using the small toolkit in `art/kit.py`). The horde follows
 one style: chunky faceted bodies in the unit's colour, steel armour plates,
 bone spikes, and glowing hexagon and triangle insets.
+Troopers wear a navy undersuit under steel plates, with a crested helmet in
+their rank's colour and lit accents in a pale shade of it; each rank adds
+armour, up to a caped commander.
 
 The bake paints ambient occlusion and lighter chamfered edges into vertex
 colours, and each mesh is packed into the 17-byte vertex format the game's

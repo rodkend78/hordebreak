@@ -294,90 +294,144 @@ def spitter():
 
 
 # ------------------------------------------------------------------ troopers
+# Style: a navy undersuit under steel plates, a big crested helmet in the
+# rank's colour, and lit accents (visor, emblem, weapon strips) in a pale
+# shade of that colour. Each rank adds armour, so a stronger squad looks it.
 
-NAVY = (0.15, 0.17, 0.26)
-BOOT = (0.09, 0.09, 0.11)
-FACE = (0.96, 0.78, 0.62)
-PLATE = (0.8, 0.8, 0.84)
-VISOR = (0.5, 0.95, 1.0)
+SUIT = (0.17, 0.2, 0.33)      # navy undersuit
+SUIT_D = (0.1, 0.11, 0.18)    # boots, gloves, straps
+ARMOR = (0.6, 0.62, 0.72)     # steel plates
+ARMOR_L = (0.84, 0.86, 0.93)  # pale plates
+ARMOR_D = (0.36, 0.38, 0.48)
+LIT = (0.85, 1.0, 1.0)
+LIT_KW = dict(col=LIT, tint=0.75, glow=1, bevel=0)  # lit in a pale shade of the rank's colour
+NAVY = SUIT
+BOOT = SUIT_D
+
+
+def _helmet(m, tier):
+    R = 0.25
+    cu = 1.13
+    m.lathe([(R * 0.9, -0.1), (R, 0.0), (R * 0.92, 0.1), (R * 0.7, 0.18), (R * 0.38, 0.235), (0, 0.25)], P(0, 0, cu), seg=12, scale=(1, 1.06),
+            col=BODY, tint=1, smooth=180)
+    m.box(P(0, 0.15, cu - 0.1), (0.3, 0.22, 0.12), col=SUIT_D, bevel=0.03)  # face guard
+    m.box(P(0, 0.235, cu + 0.005), (0.34, 0.12, 0.075), col=LIT, tint=0.75, glow=1, bevel=0.012)  # visor: one wide lit band
+    if tier >= 3:
+        m.box(P(0, 0.262, cu - 0.06), (0.06, 0.05, 0.08), **LIT_KW)  # officers' visors drop to a T
+    # Crest: a ridge over the crown from brow to nape.
+    hi = 0.075 if tier >= 4 else 0.04
+    arc = [math.radians(a) for a in range(25, 160, 15)]
+    outline = [(math.cos(a) * (R + hi) * 1.06, cu + math.sin(a) * (R + hi)) for a in arc] + \
+              [(math.cos(a) * (R - 0.02) * 1.06, cu + math.sin(a) * (R - 0.02)) for a in reversed(arc)]
+    m.prism(outline, 0.08, col=BODY_L, tint=1, bevel=0.012)
+    for s in (-1, 1):
+        m.lathe([(0.075, 0.0), (0.06, 0.04 * s)], (s * R * 0.97, 0, cu - 0.02), axis='x', seg=8, col=ARMOR)  # ear discs
+    if tier >= 5:
+        m.prism([(0.0, cu + 0.27), (0.07, cu + 0.44), (-0.08, cu + 0.56), (-0.2, cu + 0.36)], 0.06, col=BODY_L, tint=1, bevel=0.012)  # commander's fin
 
 
 def trooper(tier):
-    """Six ranks. Each adds armour so a stronger squad looks stronger."""
+    """Six ranks, from light rifleman to caped commander."""
     m = Model('inf%d' % tier, face=-1)
-    bulk = 1.0 + 0.05 * max(0, tier - 3)
-    leg = dict(swing=-0.6, pivot=0.46, mirror=True)
-    m.capsule(P(0.13, 0, 0.48), P(0.13, 0, 0.16), (0.092, 0.105), (0.08, 0.095), seg=7, col=NAVY, **leg)
-    m.box(P(0.13, 0.05, 0.065), (0.19, 0.31, 0.13), col=BOOT, bevel=0.03, **leg)
-    if tier >= 2:
-        m.box(P(0.13, 0.11, 0.31), (0.16, 0.06, 0.13), col=PLATE, tint=1, bevel=0.02, **leg)  # knee pads
-    if tier >= 5:
-        m.box(P(0.13, 0.1, 0.17), (0.17, 0.05, 0.14), col=PLATE, tint=1, bevel=0.02, **leg)  # shin plates
-    m.box(P(0, 0, 0.51), (0.37 * bulk, 0.26, 0.09), col=BOOT, bevel=0.02)  # belt
-    m.rbox(P(0, 0, 0.73), (0.38 * bulk, 0.28, 0.44), round=0.45, taper=(1.28, 1.1), col=W, tint=1)  # jacket
-    m.box(P(0, 0.145, 0.77), (0.3 * bulk, 0.06, 0.28), taper=(1.15, 1), col=PLATE, tint=1, bevel=0.02)  # chest plate
+    wide = 1.0 + 0.06 * max(0, tier - 2)
+    plate = ARMOR_L if tier == 2 else ARMOR
+    leg = dict(swing=-0.6, pivot=0.48, mirror=True)
+    m.limb(P(0.13, 0, 0.5), P(0.135, 0, 0.26), (0.2, 0.23), (0.18, 0.21), col=SUIT, bevel=0.03, **leg)
     if tier >= 1:
-        for x in (-0.09, 0.09):
-            m.box(P(x, 0.15, 0.59), (0.1, 0.07, 0.1), col=NAVY, bevel=0.015, detail=True)  # pouches
-    # Pack.
-    m.box(P(0, -0.2, 0.75), (0.3, 0.17, 0.36 if tier < 2 else 0.32), col=NAVY, bevel=0.035)
-    m.box(P(0, -0.2, 0.94 if tier < 2 else 0.915), (0.24, 0.13, 0.03), col=(0.34, 0.38, 0.5), bevel=0.01, detail=True)  # pack flap
-    if 2 <= tier <= 4:
-        m.limb(P(-0.18, -0.2, 0.97), P(0.18, -0.2, 0.97), 0.13, round=True, seg=8, col=(0.34, 0.38, 0.3))  # bedroll
-    if tier >= 3:
-        m.limb(P(0.11, -0.26, 0.9), P(0.13, -0.3, 1.55), 0.03, round=True, seg=4, col=BOOT)  # antenna
-        m.ball(P(0.13, -0.3, 1.57), 0.035, sub=1, col=(1, 0.4, 0.3), glow=1)
-    if tier >= 5:
-        m.lathe([(0.1, 0), (0.13, 0.05), (0.13, 0.2), (0.1, 0.25)], P(0, -0.24, 0.72), seg=8, col=STEEL)  # reactor
-        m.lathe([(0.135, 0.09), (0.14, 0.12), (0.135, 0.15)], P(0, -0.24, 0.72), seg=8, cap=False, col=VISOR, glow=1)
-        m.ball(P(0, -0.24, 0.98), 0.07, sub=1, col=VISOR, glow=1)
-    # Shoulders.
-    if tier >= 1:
-        r = (0.105, 0.115, 0.075) if tier < 3 else (0.14, 0.15, 0.1) if tier < 4 else (0.17, 0.17, 0.12)
-        m.ball(P(0.26 * bulk, 0, 0.955), r, col=(0.6, 0.63, 0.7) if tier < 4 else PLATE, tint=0 if tier < 4 else 1, mirror=True)
-        if tier >= 4:
-            m.lathe([(0.175, 0.0), (0.18, 0.025)], P(0.26 * bulk, 0, 0.95), seg=8, cap=False, col=GOLD, mirror=True)  # gilded rim
-    if tier == 4:
-        m.prism([(-0.26, 0.98), (0.26, 0.98), (0.3, 0.42), (0, 0.5), (-0.3, 0.42)], 0.03, at=-0.3, plane='xu', col=DARK_T, tint=1, bevel=0,
-                rot=(-10, 0, 0), rot_at=P(0, -0.3, 0.98))  # half cape
-    # Head and helmet.
-    m.ball(P(0, 0.015, 1.06), 0.155, col=FACE)
-    dome = [(0.2, -0.02), (0.205, 0.05), (0.17, 0.14), (0.09, 0.195), (0, 0.205)]
-    m.lathe(dome, P(0, 0, 1.07), seg=10, scale=(1, 1.1), col=(0.97, 0.97, 1.0), tint=0.5)  # pale helmet: the squad reads as heads from above
-    m.lathe([(0.208, 0.0), (0.212, 0.045)], P(0, 0, 1.07), seg=10, scale=(1, 1.1), cap=False, col=BOOT)  # helmet band
-    if tier >= 1:
-        m.box(P(0, -0.02, 1.262), (0.07, 0.3, 0.03), col=W, tint=1, bevel=0.01)  # rank stripe over the crown
-    if tier == 0:
-        m.box(P(0, 0.2, 1.1), (0.26, 0.1, 0.03), col=(0.6, 0.6, 0.64), tint=1, bevel=0.01)  # cap peak
+        m.limb(P(0.135, 0.015, 0.3), P(0.135, 0.01, 0.12), (0.21, 0.24), (0.19, 0.22), col=ARMOR, bevel=0.03, **leg)  # greave
     else:
-        m.box(P(0, 0.17, 1.065), (0.25, 0.05, 0.075), col=VISOR, glow=0.75, bevel=0.012)  # visor
-    if tier == 2:
-        m.ball(P(0.07, 0.17, 1.2), (0.055, 0.04, 0.045), sub=1, col=BOOT, mirror=True, detail=True)  # goggles pushed up
+        m.limb(P(0.135, 0, 0.28), P(0.135, 0, 0.12), (0.18, 0.21), (0.17, 0.2), col=SUIT, bevel=0.025, **leg)
     if tier >= 3:
-        m.box(P(0, 0.16, 0.985), (0.2, 0.08, 0.09), col=(0.62, 0.62, 0.66), tint=1, bevel=0.02)  # face guard
-    if tier == 4:
-        m.prism([(0.16, 1.26), (0.0, 1.42), (-0.24, 1.36), (-0.2, 1.24)], 0.06, col=(0.85, 0.14, 0.18), bevel=0.012)  # plume
-    if tier >= 5:
-        for s in (-1, 1):
-            m.prism([(0.02, 1.22), (-0.08, 1.46), (-0.2, 1.4), (-0.14, 1.2)], 0.035, at=s * 0.13, col=GOLD, bevel=0.008)  # twin fins
-        m.box(P(0, 0.19, 1.065), (0.27, 0.03, 0.03), col=W, glow=1, bevel=0)
+        m.box(P(0.135, 0.12, 0.31), (0.17, 0.06, 0.13), col=ARMOR_L, bevel=0.02, **leg)  # knee
+    if tier >= 4:
+        m.box(P(0.215, 0, 0.42), (0.07, 0.2, 0.17), col=ARMOR, bevel=0.02, **leg)  # thigh plate
+    m.box(P(0.135, 0.05, 0.07), (0.22, 0.34, 0.14), taper=(0.88, 0.82), col=SUIT_D, bevel=0.04, **leg)  # boot
+    m.box(P(0, 0, 0.53), (0.4 * wide, 0.28, 0.12), col=SUIT_D, bevel=0.025)  # belt
+    if tier >= 1:
+        m.box(P(0.13, 0.15, 0.52), (0.1, 0.06, 0.1), col=ARMOR_L, bevel=0.018, mirror=True, detail=True)  # pouches
+    if tier >= 2:
+        m.box(P(0, 0.15, 0.49), (0.13, 0.05, 0.16), taper=(0.7, 1), col=plate, bevel=0.02)  # tasset
+    m.box(P(0, 0, 0.76), (0.38 * wide, 0.28, 0.4), taper=(1.3, 1.12), col=SUIT, bevel=0.05)  # torso
+    if tier == 0:
+        m.box(P(0.11, 0.14, 0.8), (0.07, 0.05, 0.24), col=BODY, tint=1, bevel=0.015, mirror=True)  # webbing in the rank's colour
+    else:
+        m.box(P(0, 0.15, 0.81), (0.3 * wide, 0.07, 0.26), taper=(1.2, 1), col=plate, bevel=0.03)  # breastplate
+        m.box(P(0, 0.01, 0.975), (0.3 * wide, 0.27, 0.07), col=ARMOR, bevel=0.025)  # collar
+    # Rank emblem, lit, on the chest.
+    f = 0.19
+    if tier == 1:
+        m.box(P(0, f, 0.82), (0.14, 0.02, 0.04), **LIT_KW)
+    elif tier == 2:
+        m.prism([(0, 0.89), (0.06, 0.82), (0, 0.75), (-0.06, 0.82)], 0.02, at=f, plane='xu', **LIT_KW)
+    elif tier == 3:
+        for u in (0.8, 0.72):
+            m.prism([(-0.09, u + 0.06), (0, u), (0.09, u + 0.06), (0.09, u + 0.11), (0, u + 0.05), (-0.09, u + 0.11)], 0.02, at=f, plane='xu', **LIT_KW)
+    elif tier == 4:
+        for u in (0.86, 0.78):
+            m.box(P(0, f, u), (0.16, 0.02, 0.04), **LIT_KW)
+    elif tier == 5:
+        light(m, P(0, f - 0.005, 0.83), 0.1, axis='f', col=LIT, tint=0.75, rim=ARMOR_D)
+    # Pauldrons grow with rank.
+    sx = 0.27 * wide
+    if tier == 0:
+        m.ball(P(sx, 0, 0.94), 0.105, sub=2, col=ARMOR, mirror=True)
+    elif tier == 1:
+        m.ball(P(sx, 0, 0.95), (0.13, 0.14, 0.11), sub=2, col=ARMOR, mirror=True)
+    elif tier == 2:
+        m.box(P(sx + 0.01, 0, 0.96), (0.2, 0.25, 0.14), taper=(0.75, 0.8), col=ARMOR_L, bevel=0.04, mirror=True)
+    elif tier == 3:
+        m.ball(P(sx + 0.02, 0, 0.97), (0.19, 0.2, 0.16), sub=2, col=ARMOR, mirror=True)
+        m.box(P(sx + 0.05, 0, 0.9), (0.22, 0.3, 0.05), col=ARMOR_D, bevel=0.02, mirror=True)  # rim
+    elif tier == 4:
+        m.ball(P(sx + 0.03, 0, 0.99), (0.21, 0.22, 0.17), sub=2, col=ARMOR, mirror=True)
+        m.box(P(sx + 0.07, 0, 0.89), (0.2, 0.3, 0.09), col=ARMOR_D, bevel=0.03, mirror=True)
+        m.box(P(sx + 0.04, 0.0, 1.155), (0.05, 0.2, 0.025), mirror=True, **LIT_KW)  # lit seam over the top
+    else:
+        m.box(P(sx + 0.07, 0, 1.01), (0.3, 0.34, 0.2), taper=(0.8, 0.85), col=ARMOR_L, bevel=0.045, mirror=True)
+        m.box(P(sx + 0.07, 0, 0.89), (0.24, 0.3, 0.07), col=ARMOR_D, bevel=0.025, mirror=True)
+        m.box(P(sx + 0.07, 0.165, 1.02), (0.15, 0.02, 0.045), mirror=True, **LIT_KW)
+        m.box(P(sx + 0.07, 0.0, 1.115), (0.06, 0.18, 0.02), mirror=True, **LIT_KW)
+    # What they carry on their backs.
+    if tier == 0:
+        m.box(P(0, -0.19, 0.78), (0.26, 0.14, 0.28), col=SUIT_D, bevel=0.035)
+    elif tier == 2:
+        for s in (-1, 1):  # twin canisters
+            m.lathe([(0.085, 0.0), (0.1, 0.03), (0.1, 0.3), (0.06, 0.36)], P(s * 0.11, -0.23, 0.6), seg=8, col=LIT, tint=0.75, glow=0.6)
+            m.lathe([(0.108, 0.0), (0.108, 0.05)], P(s * 0.11, -0.23, 0.72), seg=8, col=ARMOR_D)
+        m.box(P(0, -0.17, 0.8), (0.3, 0.08, 0.24), col=ARMOR_D, bevel=0.025)
+    elif tier == 5:
+        m.box(P(0, -0.19, 0.84), (0.3, 0.14, 0.22), col=ARMOR_D, bevel=0.03)
+        m.prism([(-0.36, 1.0), (0.36, 1.0), (0.44, 0.2), (0.2, 0.12), (0, 0.22), (-0.2, 0.12), (-0.44, 0.2)], 0.035, at=-0.3, plane='xu',
+                col=BODY, tint=1, bevel=0, rot=(-9, 0, 0), rot_at=P(0, -0.3, 1.0))  # cape
+        m.prism([(-0.44, 0.2), (-0.2, 0.12), (0, 0.22), (0.2, 0.12), (0.44, 0.2), (0.42, 0.29), (0.2, 0.21), (0, 0.31), (-0.2, 0.21), (-0.42, 0.29)], 0.04,
+                at=-0.3, plane='xu', col=BODY_L, tint=1, bevel=0, rot=(-9, 0, 0), rot_at=P(0, -0.3, 1.0), detail=True)  # cape trim
+    else:
+        m.box(P(0, -0.2, 0.78), (0.3 * wide, 0.17, 0.32), col=ARMOR_D, bevel=0.035)
+        m.box(P(0, -0.2, 0.945), (0.16, 0.09, 0.02), **LIT_KW)
+        if tier == 4:
+            m.box(P(0.09, -0.295, 0.8), (0.06, 0.02, 0.16), mirror=True, **LIT_KW)  # reactor vents
+    if tier >= 2:
+        ax = 0.17 if tier != 5 else -0.2
+        m.limb(P(ax, -0.24, 0.9), P(ax, -0.27, 1.52 if tier < 5 else 1.66), 0.035 if tier < 5 else 0.05, round=True, seg=5, col=ARMOR_D)  # antenna
+        m.ball(P(ax, -0.27, 1.55 if tier < 5 else 1.69), 0.04, sub=1, col=LIT, tint=0.75, glow=1)
+    m.box(P(0, 0.02, 1.02), (0.2, 0.2, 0.1), col=SUIT_D, bevel=0.02)  # neck
+    _helmet(m, tier)
     return m
 
 
-def _arms_fn(m, rh, lh, re=None, le=None, bulk=1.0):
+def _arms_fn(m, rh, lh, re=None, le=None):
     """Two bent arms from the shoulders to the given hand positions."""
-    sleeve = (0.86, 0.86, 0.9)
-    rs, ls = P(0.25, 0, 0.9), P(-0.25, 0, 0.9)
-    re = re or P(0.3, 0.06, 0.7)
-    le = le or P(-0.24, 0.2, 0.7)
+    rs, ls = P(0.27, 0, 0.9), P(-0.27, 0, 0.9)
+    re = re or P(0.31, 0.06, 0.7)
+    le = le or P(-0.25, 0.2, 0.7)
     for s, e, h in ((rs, re, rh), (ls, le, lh)):
-        m.capsule(s, e, 0.062, 0.055, seg=6, col=sleeve, tint=1)
-        m.capsule(e, h, 0.055, 0.046, seg=6, col=sleeve, tint=1)
-        m.ball(h, 0.062, sub=1, col=BOOT)
+        m.limb(s, e, (0.13, 0.14), (0.12, 0.12), col=SUIT, bevel=0.025)
+        m.limb(e, h, (0.15, 0.15), (0.13, 0.13), col=ARMOR, bevel=0.03)  # forearm guard
+        m.box(h, (0.14, 0.14, 0.14), col=SUIT_D, bevel=0.035)  # glove
 
 
-GUN = (0.2, 0.21, 0.26)
-GUN2 = (0.36, 0.38, 0.46)
+GUN = (0.2, 0.21, 0.28)    # dark gunmetal
+GUN2 = (0.52, 0.54, 0.63)  # steel housing
 
 
 def weapon(kind, arms=True):
@@ -386,37 +440,52 @@ def weapon(kind, arms=True):
     _arms = _arms_fn if arms else (lambda *a, **k: None)
     x = 0.17
     if kind == 'rifle':
-        _arms(m, P(x, 0.2, 0.74), P(0.1, 0.52, 0.76))
-        m.box(P(x, 0.28, 0.79), (0.085, 0.44, 0.12), col=GUN, bevel=0.015)
-        m.box(P(x, -0.02, 0.775), (0.07, 0.2, 0.1), taper=(1, 1), col=GUN2, bevel=0.02)  # stock
-        m.box(P(x, 0.6, 0.79), (0.08, 0.22, 0.095), col=(0.36, 0.38, 0.3), bevel=0.015)  # handguard
-        m.limb(P(x, 0.7, 0.795), P(x, 0.96, 0.795), 0.045, round=True, seg=6, col=GUN)
-        m.box(P(x, 0.34, 0.67), (0.055, 0.1, 0.17), rot=(-14, 0, 0), col=GUN2, bevel=0.012)  # magazine
-        m.box(P(x, 0.3, 0.875), (0.04, 0.16, 0.05), col=GUN2, bevel=0.01, detail=True)  # sight
+        _arms(m, P(x, 0.2, 0.73), P(0.1, 0.52, 0.75))
+        m.box(P(x, 0.3, 0.79), (0.11, 0.5, 0.15), col=GUN2, bevel=0.025)
+        m.box(P(x, -0.02, 0.775), (0.09, 0.2, 0.12), col=GUN, bevel=0.025)  # stock
+        m.box(P(x, 0.64, 0.8), (0.09, 0.2, 0.1), col=GUN, bevel=0.02)
+        m.limb(P(x, 0.72, 0.8), P(x, 0.92, 0.8), 0.05, round=True, seg=6, col=GUN)
+        m.box(P(x, 0.93, 0.8), (0.08, 0.07, 0.08), col=GUN2, bevel=0.015)  # muzzle brake
+        m.box(P(x, 0.36, 0.66), (0.07, 0.11, 0.17), rot=(-12, 0, 0), col=GUN, bevel=0.015)  # magazine
+        m.box(P(x, 0.32, 0.872), (0.045, 0.3, 0.02), **LIT_KW)  # lit strip, seen from above
+        m.box(P(x + 0.058, 0.34, 0.79), (0.012, 0.28, 0.045), detail=True, **LIT_KW)
+        m.box(P(x, 0.1, 0.89), (0.05, 0.08, 0.04), col=GUN, bevel=0.01, detail=True)  # sight
     elif kind == 'smg':
-        _arms(m, P(x, 0.2, 0.74), P(0.11, 0.42, 0.74))
-        m.box(P(x, 0.27, 0.79), (0.085, 0.34, 0.12), col=GUN, bevel=0.015)
-        m.limb(P(x, 0.44, 0.795), P(x, 0.72, 0.795), 0.085, round=True, seg=7, col=GUN2)  # suppressor
-        m.box(P(x, 0.3, 0.64), (0.05, 0.08, 0.22), col=GUN2, bevel=0.012)  # long magazine
-        m.limb(P(x, 0.1, 0.82), P(x, -0.08, 0.82), (0.03, 0.03), col=GUN2, bevel=0)
-        m.box(P(x, -0.09, 0.79), (0.07, 0.03, 0.1), col=GUN2, bevel=0.008, detail=True)
+        _arms(m, P(x, 0.2, 0.73), P(0.11, 0.42, 0.73))
+        m.box(P(x, 0.26, 0.79), (0.11, 0.36, 0.15), col=GUN2, bevel=0.025)
+        m.limb(P(x, 0.42, 0.795), P(x, 0.7, 0.795), 0.09, round=True, seg=7, col=GUN)  # suppressor
+        m.box(P(x, 0.3, 0.63), (0.06, 0.09, 0.24), col=GUN, bevel=0.015)  # long magazine
+        m.limb(P(x, 0.1, 0.82), P(x, -0.08, 0.82), (0.035, 0.035), col=GUN, bevel=0)
+        m.box(P(x, -0.09, 0.79), (0.08, 0.035, 0.11), col=GUN, bevel=0.01, detail=True)
+        m.box(P(x, 0.26, 0.872), (0.045, 0.2, 0.02), **LIT_KW)
     elif kind == 'shotgun':
-        _arms(m, P(x, 0.18, 0.74), P(0.11, 0.58, 0.75))
-        m.box(P(x, 0.24, 0.79), (0.09, 0.3, 0.12), col=GUN, bevel=0.015)
-        m.box(P(x, -0.04, 0.76), (0.075, 0.28, 0.13), taper=(1, 1), rot=(-6, 0, 0), col=WOOD, bevel=0.025)  # wooden stock
-        m.limb(P(x, 0.38, 0.815), P(x, 1.0, 0.815), 0.065, round=True, seg=7, col=GUN2)  # barrel
-        m.limb(P(x, 0.38, 0.755), P(x, 0.86, 0.755), 0.05, round=True, seg=6, col=GUN)  # tube magazine
-        m.limb(P(x, 0.5, 0.76), P(x, 0.7, 0.76), 0.1, round=True, seg=7, col=WOOD)  # pump
+        _arms(m, P(x, 0.18, 0.73), P(0.11, 0.58, 0.74))
+        m.box(P(x, 0.24, 0.79), (0.11, 0.32, 0.15), col=GUN2, bevel=0.025)
+        m.box(P(x, -0.04, 0.765), (0.085, 0.28, 0.13), rot=(-6, 0, 0), col=GUN, bevel=0.03)  # stock
+        for dx in (-0.032, 0.032):  # twin barrels
+            m.limb(P(x + dx, 0.38, 0.815), P(x + dx, 0.98, 0.815), 0.062, round=True, seg=6, col=GUN)
+        m.box(P(x, 0.6, 0.755), (0.13, 0.22, 0.08), col=GUN2, bevel=0.02)  # pump
+        m.box(P(x, 0.99, 0.815), (0.14, 0.03, 0.08), col=GUN2, bevel=0.01, detail=True)
+        m.box(P(x, 0.22, 0.872), (0.045, 0.14, 0.02), **LIT_KW)
     elif kind == 'mg':
-        _arms(m, P(x, 0.18, 0.72), P(0.08, 0.5, 0.72))
-        m.box(P(x, 0.3, 0.79), (0.12, 0.56, 0.16), col=GUN, bevel=0.02)
-        m.box(P(x, -0.06, 0.77), (0.09, 0.2, 0.13), col=GUN2, bevel=0.02)
-        m.limb(P(x, 0.58, 0.8), P(x, 0.9, 0.8), 0.13, round=True, seg=8, col=GUN2)  # heat shield
-        m.limb(P(x, 0.88, 0.8), P(x, 1.06, 0.8), 0.06, round=True, seg=6, col=GUN)
-        m.box(P(x - 0.12, 0.34, 0.72), (0.14, 0.18, 0.18), col=(0.3, 0.36, 0.26), bevel=0.02)  # ammo box
-        m.box(P(x - 0.04, 0.34, 0.83), (0.1, 0.1, 0.03), col=(0.95, 0.72, 0.25), bevel=0, detail=True)  # belt
-        m.limb(P(x, 0.24, 0.87), P(x, 0.44, 0.9), (0.03, 0.03), col=GUN2, bevel=0, detail=True)  # carry handle
-        m.limb(P(x, 0.74, 0.74), P(x, 0.56, 0.66), (0.03, 0.03), col=GUN2, bevel=0, detail=True)  # folded bipod
+        # Rotary cannon, carried at the hip by its top handle.
+        u = 0.66
+        _arms(m, P(x, 0.14, 0.84), P(0.04, 0.4, 0.7), re=P(0.33, 0.02, 0.74), le=P(-0.24, 0.2, 0.68))
+        m.box(P(x, 0.18, u), (0.2, 0.4, 0.24), col=GUN2, bevel=0.035)  # housing
+        m.limb(P(x, 0.04, u + 0.15), P(x, 0.3, u + 0.15), (0.04, 0.04), col=GUN, bevel=0)  # carry handle
+        for f in (0.05, 0.3):
+            m.limb(P(x, f, u + 0.1), P(x, f, u + 0.16), (0.04, 0.04), col=GUN, bevel=0, detail=True)
+        for f in (0.12, 0.22):
+            m.box(P(x + 0.103, f, u), (0.012, 0.05, 0.12), detail=True, **LIT_KW)  # lit bars on the flank
+            m.box(P(x - 0.06, f, u + 0.123), (0.06, 0.05, 0.012), **LIT_KW)  # and on top
+        m.box(P(x - 0.15, 0.16, u - 0.04), (0.12, 0.2, 0.2), col=GUN, bevel=0.025)  # ammunition drum
+        m.lathe([(0.115, 0.36), (0.115, 0.43)], P(x, 0, u), axis='f', seg=8, col=GUN)
+        for i in range(6):
+            a = i * math.pi / 3
+            dx, du = math.cos(a) * 0.07, math.sin(a) * 0.07
+            m.limb(P(x + dx, 0.42, u + du), P(x + dx, 0.98, u + du), 0.05, round=True, seg=5, col=GUN)
+        m.lathe([(0.118, 0.84), (0.118, 0.9)], P(x, 0, u), axis='f', seg=8, col=GUN2)
+        m.ball(P(x, 0.985, u), (0.04, 0.02, 0.04), sub=1, col=LIT, tint=0.75, glow=1)
     elif kind == 'rail':
         cyan = (0.35, 0.85, 1.0)
         _arms(m, P(x, 0.16, 0.73), P(0.1, 0.52, 0.72))

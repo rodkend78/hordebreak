@@ -28,9 +28,9 @@ const BOSS_SCALE = 3.1;
 // mz/my = where the muzzle of the weapon model sits (ahead of, and above, the trooper's feet).
 const WEAPON_LOOK = {
   rifle: { col: [1.0, 0.8, 0.36], w: 0.075, len: 1.7, flash: 0.6, light: 0.8, casing: true, mz: 0.9, my: 0.73 },
-  smg: { col: [1.0, 0.86, 0.42], w: 0.06, len: 1.2, flash: 0.45, light: 0.6, casing: true, mz: 0.68, my: 0.73 },
-  shotgun: { col: [1.0, 0.62, 0.22], w: 0.085, len: 1.0, flash: 1.0, light: 1.2, casing: true, mz: 0.94, my: 0.75 },
-  mg: { col: [1.0, 0.62, 0.2], w: 0.075, len: 2.2, flash: 0.6, light: 0.9, casing: true, mz: 1.0, my: 0.74 },
+  smg: { col: [1.0, 0.86, 0.42], w: 0.06, len: 1.2, flash: 0.45, light: 0.6, casing: true, mz: 0.66, my: 0.73 },
+  shotgun: { col: [1.0, 0.62, 0.22], w: 0.085, len: 1.0, flash: 1.0, light: 1.2, casing: true, mz: 0.9, my: 0.75 },
+  mg: { col: [1.0, 0.62, 0.2], w: 0.075, len: 2.2, flash: 0.6, light: 0.9, casing: true, mz: 0.92, my: 0.61 },
   rail: { col: [0.35, 0.85, 1.0], w: 0.13, len: 4.5, flash: 0.8, light: 1.1, beam: true, mz: 0.96, my: 0.73 },
   rocket: { col: [1.0, 0.55, 0.18], flash: 0.9, light: 1.0, rocket: true, mz: 0.8, my: 0.91 },
   plasma: { col: [0.9, 0.35, 1.0], w: 0.15, len: 1.3, flash: 0.7, light: 1.0, orb: 0.55, mz: 0.72, my: 0.71 },
