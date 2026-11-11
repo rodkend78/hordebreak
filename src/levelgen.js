@@ -5,7 +5,7 @@
 // "mercy" (0..1) scales the threat down. It stays at 1 unless the pre-flight
 // check in bot.js finds the level cannot be won with the player's loadout.
 
-const { ROAD_HALF, ENEMIES, SHELL_FROM, refAt, isBossLevel, levelReward } = __m["src/data.js"];
+const { ROAD_HALF, ENEMIES, roadLimit, SHELL_FROM, refAt, isBossLevel, levelReward } = __m["src/data.js"];
 const { mulberry32, hashSeed } = __m["src/rng.js"];
 const TENSION_MIN = 0.46;
 const TENSION_MAX = 1.0;
@@ -48,9 +48,10 @@ function generateLevel(n, seed, mercy = 1) {
 
   function addEnemy(type, x, at, pack) {
     const d = ENEMIES[type];
+    const lim = roadLimit(type);
     L.spawns.push({
       type,
-      x: Math.max(-ROAD_HALF + d.r, Math.min(ROAD_HALF - d.r, x)),
+      x: Math.max(-lim, Math.min(lim, x)),
       s: at,
       hp: d.hp * hpUnit * pack,
       dmg: d.dmg * pack,

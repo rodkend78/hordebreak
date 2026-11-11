@@ -443,19 +443,28 @@ const UPGRADES = [
 
 // ---- Enemies. hp is in multiples of one grunt at the current level.
 // dmg is how many troops a hit costs on average (0.2 = a 20% chance).
+// r is the body a bullet can hit. `wide` is set where the figure is drawn
+// much broader than that, so its shoulders stay inside the bridge rails.
 const ENEMIES = {
   grunt: { name: 'Grunt', hp: 1, speed: 2.0, lat: 2.0, r: 0.38, dmg: 0.2, from: 1 },
   runner: { name: 'Runner', hp: 0.6, speed: 4.4, lat: 3.4, r: 0.33, dmg: 0.2, from: 3 },
   brute: { name: 'Brute', hp: 9, speed: 1.5, lat: 1.4, r: 0.72, dmg: 1, from: 5 },
   shield: { name: 'Shieldbearer', hp: 4, speed: 1.8, lat: 1.6, r: 0.46, dmg: 0.4, from: 8 },
   bomber: { name: 'Bomber', hp: 2.5, speed: 3.2, lat: 2.6, r: 0.48, dmg: 1.5, from: 11 },
-  giant: { name: 'Giant', hp: 55, speed: 1.15, lat: 1.0, r: 1.25, dmg: 5, from: 7 },
+  giant: { name: 'Giant', hp: 55, speed: 1.15, lat: 1.0, r: 1.25, wide: 1.85, dmg: 5, from: 7 },
   // Artillery: lobs acid at where the squad is heading (see Sim.spit).
   spitter: { name: 'Spitter', hp: 3, speed: 1.3, lat: 1.0, r: 0.5, dmg: 0.6, from: 6 },
   // Late game: a pack leader as fast as a runner, and a mid-sized golem.
   dire: { name: 'Dire Hound', hp: 5, speed: 4.0, lat: 3.2, r: 0.5, dmg: 1.2, from: 23 },
-  warlord: { name: 'Warlord', hp: 24, speed: 1.4, lat: 1.3, r: 0.95, dmg: 3, from: 27 },
+  warlord: { name: 'Warlord', hp: 24, speed: 1.4, lat: 1.3, r: 0.95, wide: 1.15, dmg: 3, from: 27 },
 };
+// How far from the middle of the road an enemy's centre may be.
+function roadLimit(type) {
+  const d = ENEMIES[type];
+  return ROAD_HALF - (d.wide || d.r);
+}
+// The boss is drawn far wider than the body bullets hit; this keeps its arms inside the rails.
+const BOSS_LIMIT = 2.0;
 
 // From this level on, stretches of road come under shellfire (see levelgen.js).
 const SHELL_FROM = 21;
@@ -695,7 +704,7 @@ function fmt(n) {
   return (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2)) + units[u];
 }
 
-return { ROAD_HALF, SCROLL, DT, VIEW, BULLET_RANGE, MAX_COUNT, START_COUNT, WEAPONS, INFANTRY, UPGRADES, ENEMIES, ENEMY_TIPS, SHELL_FROM, ZONES, zoneOf, STRIKE_FROM, STRIKE_PER_LEVEL, bossName, starsFor, STAR_BONUS, isBossLevel, levelReward, upgradeCost, weaponPower, newSave, byId, loadoutOf, shopOffers, buy, bestPurchase, canUpgrade, autoSpend, refAt, fmt };
+return { ROAD_HALF, SCROLL, DT, VIEW, BULLET_RANGE, MAX_COUNT, START_COUNT, WEAPONS, INFANTRY, UPGRADES, ENEMIES, roadLimit, BOSS_LIMIT, ENEMY_TIPS, SHELL_FROM, ZONES, zoneOf, STRIKE_FROM, STRIKE_PER_LEVEL, bossName, starsFor, STAR_BONUS, isBossLevel, levelReward, upgradeCost, weaponPower, newSave, byId, loadoutOf, shopOffers, buy, bestPurchase, canUpgrade, autoSpend, refAt, fmt };
 })();
 
 // ---- src/rng.js ----
@@ -734,7 +743,7 @@ __m["src/sim.js"] = (() => {
 // Things in the level sit at a track position s; their z is s - p, where p is
 // how far the squad has marched.
 
-const { ROAD_HALF, SCROLL, DT, VIEW, BULLET_RANGE, MAX_COUNT, ENEMIES, STRIKE_FROM, STRIKE_PER_LEVEL, starsFor, STAR_BONUS } = __m["src/data.js"];
+const { ROAD_HALF, SCROLL, DT, VIEW, BULLET_RANGE, MAX_COUNT, ENEMIES, roadLimit, BOSS_LIMIT, STRIKE_FROM, STRIKE_PER_LEVEL, starsFor, STAR_BONUS } = __m["src/data.js"];
 const { mulberry32 } = __m["src/rng.js"];
 const FUNNEL = 30; // enemies start converging on the squad at this distance
 const GX = 12;
@@ -872,7 +881,7 @@ class Sim {
     const d = ENEMIES[s.type];
     const e = {
       type: s.type, x: s.x, s: s.s, z: s.s - this.p, hp: s.hp, maxHp: s.hp,
-      speed: d.speed, lat: d.lat, r: d.r, dmg: s.dmg,
+      speed: d.speed, lat: d.lat, r: d.r, lim: roadLimit(s.type), dmg: s.dmg,
       off: this.rng() * 2 - 1, phase: this.rng() * 6.28, flash: 0,
     };
     if (s.type === 'spitter') {
@@ -934,8 +943,9 @@ class Sim {
       e.z = e.s - this.p;
       if (e.flash > 0) e.flash -= dt * 6;
       if (e.z < FUNNEL) {
-        // Close enough to notice the squad: pour toward it.
-        const want = this.x + e.off * (R + 0.5);
+        // Close enough to notice the squad: pour toward it, but stay on the
+        // bridge. The squad may hang over the edge; the horde may not.
+        const want = Math.max(-e.lim, Math.min(e.lim, this.x + e.off * (R + 0.5)));
         const d = want - e.x;
         const mv = e.lat * dt;
         e.x += Math.abs(d) <= mv ? d : Math.sign(d) * mv;
@@ -1104,7 +1114,8 @@ class Sim {
     }
     if (b.stun > 0) b.stun -= dt;
     else if (this.bossHold) b.s -= this.L.boss.speed * dt;
-    const d = this.x - b.x;
+    // It turns to face the squad, but is too broad to follow it to the rail.
+    const d = Math.max(-BOSS_LIMIT, Math.min(BOSS_LIMIT, this.x)) - b.x;
     b.x += Math.sign(d) * Math.min(Math.abs(d), 1.3 * dt);
     b.z = b.s - this.p;
     // Minion waves.
@@ -1354,7 +1365,7 @@ __m["src/levelgen.js"] = (() => {
 // "mercy" (0..1) scales the threat down. It stays at 1 unless the pre-flight
 // check in bot.js finds the level cannot be won with the player's loadout.
 
-const { ROAD_HALF, ENEMIES, SHELL_FROM, refAt, isBossLevel, levelReward } = __m["src/data.js"];
+const { ROAD_HALF, ENEMIES, roadLimit, SHELL_FROM, refAt, isBossLevel, levelReward } = __m["src/data.js"];
 const { mulberry32, hashSeed } = __m["src/rng.js"];
 const TENSION_MIN = 0.46;
 const TENSION_MAX = 1.0;
@@ -1397,9 +1408,10 @@ function generateLevel(n, seed, mercy = 1) {
 
   function addEnemy(type, x, at, pack) {
     const d = ENEMIES[type];
+    const lim = roadLimit(type);
     L.spawns.push({
       type,
-      x: Math.max(-ROAD_HALF + d.r, Math.min(ROAD_HALF - d.r, x)),
+      x: Math.max(-lim, Math.min(lim, x)),
       s: at,
       hp: d.hp * hpUnit * pack,
       dmg: d.dmg * pack,

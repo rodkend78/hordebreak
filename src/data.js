@@ -51,19 +51,28 @@ const UPGRADES = [
 
 // ---- Enemies. hp is in multiples of one grunt at the current level.
 // dmg is how many troops a hit costs on average (0.2 = a 20% chance).
+// r is the body a bullet can hit. `wide` is set where the figure is drawn
+// much broader than that, so its shoulders stay inside the bridge rails.
 const ENEMIES = {
   grunt: { name: 'Grunt', hp: 1, speed: 2.0, lat: 2.0, r: 0.38, dmg: 0.2, from: 1 },
   runner: { name: 'Runner', hp: 0.6, speed: 4.4, lat: 3.4, r: 0.33, dmg: 0.2, from: 3 },
   brute: { name: 'Brute', hp: 9, speed: 1.5, lat: 1.4, r: 0.72, dmg: 1, from: 5 },
   shield: { name: 'Shieldbearer', hp: 4, speed: 1.8, lat: 1.6, r: 0.46, dmg: 0.4, from: 8 },
   bomber: { name: 'Bomber', hp: 2.5, speed: 3.2, lat: 2.6, r: 0.48, dmg: 1.5, from: 11 },
-  giant: { name: 'Giant', hp: 55, speed: 1.15, lat: 1.0, r: 1.25, dmg: 5, from: 7 },
+  giant: { name: 'Giant', hp: 55, speed: 1.15, lat: 1.0, r: 1.25, wide: 1.85, dmg: 5, from: 7 },
   // Artillery: lobs acid at where the squad is heading (see Sim.spit).
   spitter: { name: 'Spitter', hp: 3, speed: 1.3, lat: 1.0, r: 0.5, dmg: 0.6, from: 6 },
   // Late game: a pack leader as fast as a runner, and a mid-sized golem.
   dire: { name: 'Dire Hound', hp: 5, speed: 4.0, lat: 3.2, r: 0.5, dmg: 1.2, from: 23 },
-  warlord: { name: 'Warlord', hp: 24, speed: 1.4, lat: 1.3, r: 0.95, dmg: 3, from: 27 },
+  warlord: { name: 'Warlord', hp: 24, speed: 1.4, lat: 1.3, r: 0.95, wide: 1.15, dmg: 3, from: 27 },
 };
+// How far from the middle of the road an enemy's centre may be.
+function roadLimit(type) {
+  const d = ENEMIES[type];
+  return ROAD_HALF - (d.wide || d.r);
+}
+// The boss is drawn far wider than the body bullets hit; this keeps its arms inside the rails.
+const BOSS_LIMIT = 2.0;
 
 // From this level on, stretches of road come under shellfire (see levelgen.js).
 const SHELL_FROM = 21;
@@ -303,4 +312,4 @@ function fmt(n) {
   return (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2)) + units[u];
 }
 
-return { ROAD_HALF, SCROLL, DT, VIEW, BULLET_RANGE, MAX_COUNT, START_COUNT, WEAPONS, INFANTRY, UPGRADES, ENEMIES, ENEMY_TIPS, SHELL_FROM, ZONES, zoneOf, STRIKE_FROM, STRIKE_PER_LEVEL, bossName, starsFor, STAR_BONUS, isBossLevel, levelReward, upgradeCost, weaponPower, newSave, byId, loadoutOf, shopOffers, buy, bestPurchase, canUpgrade, autoSpend, refAt, fmt };
+return { ROAD_HALF, SCROLL, DT, VIEW, BULLET_RANGE, MAX_COUNT, START_COUNT, WEAPONS, INFANTRY, UPGRADES, ENEMIES, roadLimit, BOSS_LIMIT, ENEMY_TIPS, SHELL_FROM, ZONES, zoneOf, STRIKE_FROM, STRIKE_PER_LEVEL, bossName, starsFor, STAR_BONUS, isBossLevel, levelReward, upgradeCost, weaponPower, newSave, byId, loadoutOf, shopOffers, buy, bestPurchase, canUpgrade, autoSpend, refAt, fmt };
