@@ -67,12 +67,12 @@ def sheet(path, items, eye, target, res=(1600, 800), lens=50, samples=20):
 
 if MODE in ('all', 'horde'):
     items = []
-    xs = {'grunt': -4.6, 'runner': -3.3, 'shield': -2.0, 'bomber': -0.7, 'spitter': 0.7, 'brute': 2.3, 'giant': 4.9}
+    xs = {'grunt': -5.0, 'runner': -3.7, 'shield': -2.35, 'bomber': -0.95, 'spitter': 0.45, 'brute': 2.1, 'giant': 4.8}
     for n, x in xs.items():
         fn, tint, sc_ = models.ENEMIES[n]
         items.append((n, tint, (x, 0, 0), 0.0, sc_))
     # close-up front 3/4, then the in-game angle
-    sheet(os.path.join(OUT, 'sheet_horde_front.png'), items, (0.2, -10.5, 2.8), (0.2, 0, 1.0), lens=36)
+    sheet(os.path.join(OUT, 'sheet_horde_front.png'), items, (2.2, -10.8, 2.6), (0.1, 0, 1.0), lens=36)
     sheet(os.path.join(OUT, 'sheet_horde_game.png'), items, (0.5, -6.0, 8.5), (0.3, 0.6, 0.6), lens=34)
 if MODE in ('all', 'boss'):
     fn, tint, sc_ = models.ENEMIES['boss']

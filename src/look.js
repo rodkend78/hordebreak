@@ -5,11 +5,11 @@ const { INFANTRY } = __m["src/data.js"];
 // mesh = which model, col = base colour, s = size, walk = stride speed
 const ENEMY_LOOK = {
   grunt: { mesh: 'grunt', col: [0.95, 0.27, 0.3], s: 1.0, walk: 7.5 },
-  runner: { mesh: 'runner', col: [1.0, 0.5, 0.14], s: 0.98, walk: 15 },
-  brute: { mesh: 'brute', col: [0.7, 0.16, 0.28], s: 1.12, walk: 5 },
+  runner: { mesh: 'runner', col: [1.0, 0.56, 0.2], s: 1.0, walk: 14 },
+  brute: { mesh: 'brute', col: [0.88, 0.22, 0.42], s: 1.12, walk: 5 },
   shield: { mesh: 'shield', col: [0.66, 0.36, 0.95], s: 1.04, walk: 6.5 },
   bomber: { mesh: 'bomber', col: [1.0, 0.78, 0.1], s: 1.05, walk: 13 },
-  giant: { mesh: 'giant', col: [0.56, 0.1, 0.18], s: 1.95, walk: 3.6 },
+  giant: { mesh: 'giant', col: [0.74, 0.16, 0.38], s: 1.95, walk: 3.6 },
   spitter: { mesh: 'spitter', col: [0.42, 0.86, 0.3], s: 1.08, walk: 6 },
 };
 // Crowd types switch to a lighter model beyond this distance.

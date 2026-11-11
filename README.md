@@ -59,10 +59,15 @@ The live page follows a minute or two later.
 ## Models
 
 Characters, weapons and props are authored in Blender from Python
-(`art/models.py`, using the small toolkit in `art/kit.py`). Ambient occlusion
-is baked into vertex colours, and each mesh is packed into the 16-byte vertex
-format the game's shader reads (position, normal, colour, tint, walk-cycle
-swing, glow).
+(`art/models.py`, using the small toolkit in `art/kit.py`). The horde follows
+one style: chunky faceted bodies in the unit's colour, steel armour plates,
+bone spikes, and glowing hexagon and triangle insets.
+
+The bake paints ambient occlusion and lighter chamfered edges into vertex
+colours, and each mesh is packed into the 17-byte vertex format the game's
+shader reads (position, normal, colour, tint, walk-cycle swing with its hinge
+height and depth, glow). The hinge depth is what lets a four-legged body move
+each leg about its own hip.
 
 To change a model and rebuild:
 

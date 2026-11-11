@@ -42,7 +42,7 @@ def _rot(rot):
 
 
 class Part:
-    __slots__ = ('bm', 'col', 'tint', 'swing', 'pivot', 'glow', 'smooth', 'ao')
+    __slots__ = ('bm', 'col', 'tint', 'swing', 'pivot', 'pivot_f', 'glow', 'smooth', 'ao')
 
 
 class Model:
@@ -64,6 +64,7 @@ class Model:
         p.tint = kw.get('tint', 0)
         p.swing = kw.get('swing', 0)
         p.pivot = kw.get('pivot', 0)
+        p.pivot_f = kw.get('pivot_f', 0)  # how far forward of the figure's centre the hinge sits
         p.glow = kw.get('glow', 0)
         p.smooth = kw.get('smooth', 40)
         p.ao = kw.get('ao', p.glow < 0.5)
@@ -76,14 +77,19 @@ class Model:
             for k in Part.__slots__:
                 setattr(q, k, getattr(p, k))
             q.bm = bm2
-            q.swing = -p.swing
+            q.swing = p.swing if kw['mirror'] == 'same' else -p.swing
             self.parts.append(q)
         return p
 
     def _bevel(self, bm, amt):
         if amt > 0 and LOD == 0:
-            bmesh.ops.bevel(bm, geom=list(bm.edges), offset=amt, offset_type='OFFSET', segments=1, profile=0.5,
-                            affect='EDGES', clamp_overlap=True)
+            # The chamfer faces are tagged so the bake can paint them lighter:
+            # the worn, highlighted edge of stylised hard-surface art.
+            hl = bm.faces.layers.int.get('hl') or bm.faces.layers.int.new('hl')
+            res = bmesh.ops.bevel(bm, geom=list(bm.edges), offset=amt, offset_type='OFFSET', segments=1, profile=0.5,
+                                  affect='EDGES', clamp_overlap=True)
+            for f in res['faces']:
+                f[hl] = 1
 
     # ---- primitives ----
     def box(self, c, size, rot=(0, 0, 0), taper=(1, 1), shear=(0, 0), bevel=0.025, **kw):
@@ -241,17 +247,18 @@ class Model:
             bmesh.ops.transform(bm, matrix=Matrix.Translation(piv) @ _rot(rot) @ Matrix.Translation(-piv), verts=bm.verts)
         return self._add(bm, kw)
 
-    def lathe(self, profile, c=(0, 0, 0), axis='u', seg=10, scale=(1, 1), cap=True, **kw):
+    def lathe(self, profile, c=(0, 0, 0), axis='u', seg=10, scale=(1, 1), cap=True, exact=False, turn=0.0, **kw):
         """Spin a profile [(radius, height)...] about the vertical axis ('u')
         or the forward axis ('f'). scale squashes the two radial directions."""
-        n = max(6, seg * 2 // 3) if LOD else seg
+        n = max(6, seg * 2 // 3) if LOD and not exact else seg  # exact: the side count is the shape (hexagon, triangle)
+        t0 = math.radians(turn)
         bm = bmesh.new()
         rings = []
         for r, h in profile:
             if r < 1e-5:
                 rings.append([bm.verts.new((0, 0, h))])
             else:
-                rings.append([bm.verts.new((math.cos(i / n * math.tau) * r * scale[0], math.sin(i / n * math.tau) * r * scale[1], h)) for i in range(n)])
+                rings.append([bm.verts.new((math.cos(t0 + i / n * math.tau) * r * scale[0], math.sin(t0 + i / n * math.tau) * r * scale[1], h)) for i in range(n)])
         for a, b in zip(rings, rings[1:]):
             if len(a) == 1 and len(b) == 1:
                 continue
@@ -270,12 +277,18 @@ class Model:
         m = Matrix.Translation(c)
         if axis == 'f':
             m = m @ Matrix.Rotation(math.radians(90), 4, 'X')  # local +z -> forward (-y)
+        elif axis == 'x':
+            m = m @ Matrix.Rotation(math.radians(90), 4, 'Y')  # local +z -> +x (the figure's side)
         bmesh.ops.transform(bm, matrix=m, verts=bm.verts)
         kw.setdefault('smooth', 50)
         return self._add(bm, kw)
 
 
 # ---------------------------------------------------------------- baking
+
+EDGE_LIGHT = 1.26  # how much brighter a chamfered edge is painted
+COLOR_RANGE = 1.3  # stored colours run 0..1.3, so highlights can exceed the base colour
+
 
 def _hemisphere(n, rng):
     """Cosine-weighted directions about +z."""
@@ -307,11 +320,13 @@ def collect(model, extra_occluders=(), ao_strength=0.85, ao_dist=0.55, rays=40):
         bm.to_mesh(me)
         bm.free()
         cn = me.corner_normals
+        hl = me.attributes.get('hl')
         start = len(recs)
         for poly in me.polygons:
+            edge = 1.0 if hl is None or p.glow > 0.3 or not hl.data[poly.index].value else EDGE_LIGHT
             for li in poly.loop_indices:
                 v = me.vertices[me.loops[li].vertex_index].co
-                recs.append([Vector(v), Vector(cn[li].vector), p, 1.0])
+                recs.append([Vector(v), Vector(cn[li].vector), p, 1.0, edge])
         meshes.append((me, p, start))
 
     # Occlusion geometry: this model, any companions, and the ground.
@@ -352,6 +367,8 @@ def collect(model, extra_occluders=(), ao_strength=0.85, ao_dist=0.55, rays=40):
                 occ += 1 - hit[3] / ao_dist
         ao = 1 - ao_strength * (occ / rays)
         r[3] = cache[key] = ao
+    for r in recs:
+        r[3] *= r[4]  # fold the edge highlight into the baked shade
     return recs, meshes
 
 
@@ -361,7 +378,7 @@ def pack(model, recs):
     f = model.face
     ext = 1e-6
     conv = []
-    for pos, nor, p, ao in recs:
+    for pos, nor, p, ao, _edge in recs:
         if f > 0:
             gp = (pos.x, pos.z, -pos.y)
             gn = (nor.x, nor.z, -nor.y)
@@ -376,14 +393,16 @@ def pack(model, recs):
     vbytes = bytearray()
     ibytes = bytearray()
     q8 = lambda v: max(0, min(255, int(round(v * 255))))
+    qc = lambda v: max(0, min(255, int(round(v / COLOR_RANGE * 255))))
     for gp, gn, p, shade in conv:
         l = math.sqrt(gn[0] ** 2 + gn[1] ** 2 + gn[2] ** 2) or 1
         rec = struct.pack(
-            '<hhhbbbBBBBbBB',
+            '<hhhbbbBBBBbBBb',
             *(int(round(c / ext * 32767)) for c in gp),
             *(int(round(c / l * 127)) for c in gn),
-            q8(p.col[0] * shade), q8(p.col[1] * shade), q8(p.col[2] * shade),
+            qc(p.col[0] * shade), qc(p.col[1] * shade), qc(p.col[2] * shade),
             q8(p.tint), max(-127, min(127, int(round(p.swing * 100)))), max(0, min(255, int(round(p.pivot * 200)))), q8(p.glow),
+            max(-127, min(127, int(round(p.pivot_f * f * 50)))),
         )
         i = index.get(rec)
         if i is None:

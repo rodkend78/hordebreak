@@ -2,20 +2,24 @@
 // (art/models.py) and shipped as packed binary in models.js; the two shapes
 // used for scenery and debris are still built here in code.
 //
-// A vertex is 13 numbers: position (3), normal (3), colour (3), tint (1),
-// swing (1), pivot height (1), glow (1).
+// A vertex is 14 numbers: position (3), normal (3), colour (3), tint (1),
+// swing (1), pivot height (1), glow (1), pivot depth (1).
 //   tint 1  -> the colour is multiplied by the colour of the instance being
 //              drawn (so one grunt mesh serves every shade of grunt)
 //   swing   -> how far (radians) this vertex swings back and forth around a
-//              hinge at `pivot` height: that is how legs and arms walk,
+//              hinge at `pivot` height (and `pivot depth` ahead of centre,
+//              for four-legged bodies): that is how legs and arms walk,
 //              entirely on the graphics card
 //   glow    -> ignores lighting (eyes, fuses, emblems)
-// Colours already carry ambient occlusion baked in Blender.
+// Colours already carry ambient occlusion and painted edge highlights baked
+// in Blender; they run up to 1.3 so a highlight can outshine its base colour.
 //
 // Enemies face +z (toward the camera). Troopers face -z (up the road).
 
 const { MODEL_INDEX, MODEL_DATA } = __m["src/models.js"];
-const VERT_SIZE = 13;
+const VERT_SIZE = 14;
+const REC = 17; // bytes per packed vertex
+const COLOR_RANGE = 1.3;
 
 // Box centred at the origin; tx/tz taper the top, tilt and roll lean it.
 function boxVerts(sx, sy, sz, col, tint, o = {}) {
@@ -42,7 +46,7 @@ function boxVerts(sx, sy, sz, col, tint, o = {}) {
     let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
     const l = Math.hypot(nx, ny, nz) || 1;
     nx /= l; ny /= l; nz /= l;
-    for (const i of [0, 1, 2, 0, 2, 3]) v.push(c[q[i]][0], c[q[i]][1], c[q[i]][2], nx, ny, nz, col[0], col[1], col[2], tint, 0, 0, 0);
+    for (const i of [0, 1, 2, 0, 2, 3]) v.push(c[q[i]][0], c[q[i]][1], c[q[i]][2], nx, ny, nz, col[0], col[1], col[2], tint, 0, 0, 0, 0);
   }
   return v;
 }
@@ -64,20 +68,21 @@ function decodeModels() {
     const [vc, ic, ext, off] = MODEL_INDEX[name];
     const verts = new Float32Array(vc * VERT_SIZE);
     for (let i = 0; i < vc; i++) {
-      const o = off + i * 16;
+      const o = off + i * REC;
       const k = i * VERT_SIZE;
       for (let j = 0; j < 3; j++) {
         verts[k + j] = (dv.getInt16(o + j * 2, true) / 32767) * ext;
         verts[k + 3 + j] = dv.getInt8(o + 6 + j) / 127;
-        verts[k + 6 + j] = u8[o + 9 + j] / 255;
+        verts[k + 6 + j] = (u8[o + 9 + j] / 255) * COLOR_RANGE;
       }
       verts[k + 9] = u8[o + 12] / 255;
       verts[k + 10] = dv.getInt8(o + 13) / 100;
       verts[k + 11] = u8[o + 14] / 200;
       verts[k + 12] = u8[o + 15] / 255;
+      verts[k + 13] = dv.getInt8(o + 16) / 50;
     }
     const idx = new Uint16Array(ic);
-    const io = off + vc * 16;
+    const io = off + vc * REC;
     for (let i = 0; i < ic; i++) idx[i] = dv.getUint16(io + i * 2, true);
     out[name] = { verts, idx };
   }
