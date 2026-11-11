@@ -34,6 +34,7 @@ class Fx {
     this.flyers = [];
     this.lobs = [];
     this.slow = 0; // seconds of slow motion left
+    this.bossHit = 9; // seconds since the boss last struck: drives its follow-through
     this.dodgeT = 0;
     this.shake = [0, 0];
     this.shakeAmt = 0;
@@ -298,6 +299,7 @@ class Fx {
         case 'slam':
           this.text('−' + e.n, sim.x, 2, 0.6, '#ff7b7b', 1.2);
           this.squadLoss(sim, e.n, true);
+          this.bossHit = 0;
           this.sprite({ shape: 1, flat: 1, x: sim.x, y: 0.05, z: 1, s0: 1, s1: 9, col: [1, 0.5, 0.3], a: 0.9, life: 0.45 });
           this.sprite({ add: false, shape: 2, flat: 1, x: sim.x, y: 0.03, z: 1.5, s0: 2, s1: 2.6, col: [0.08, 0.06, 0.08], a: 0.45, life: 3 });
           this.squadFlash = 1;
@@ -310,7 +312,7 @@ class Fx {
           this.sprite({ x: e.x, y: 1.3, z: e.z - 0.5, s0: 0.3, s1: 0.9, col: ACID.ball, a: 0.9, life: 0.15 });
           sound.play('spit');
           break;
-        case 'blast': this.blast(e, sim, slamHit); sound.play(e.kind === 'acid' ? 'splash' : 'slam'); break;
+        case 'blast': if (e.kind === 'slam') this.bossHit = 0; this.blast(e, sim, slamHit); sound.play(e.kind === 'acid' ? 'splash' : 'slam'); break;
         case 'bosscast': sound.play('warn'); break;
         case 'strike': this.strikeRun(sim); sound.play('jet'); break;
         case 'bomb': this.bomb(e); sound.play('boom'); break;
@@ -438,6 +440,7 @@ class Fx {
     }
     this.lobs.length = w;
     this.dodgeT = Math.max(0, this.dodgeT - dt);
+    this.bossHit += dt;
 
     w = 0;
     for (const f of this.floats) {

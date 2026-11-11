@@ -29,7 +29,8 @@ else {
   await page.evaluate(([ff, until]) => {
     const hb = window.__hordebreak; const s = hb.sim;
     let i = 0;
-    const done = () => until === 'hazard' ? s.hazards.some((h) => h.t < 0.9 && h.s - s.p < 14) : until === 'bosshaz' ? s.hazards.some((h) => h.kind === 'slam' && h.t < 0.7) : until === 'charge' ? s.charge >= 1 : until === 'boss' ? s.bossHold : until === 'end' ? false : false;
+    const custom = until.startsWith('js:') ? new Function('s', 'return ' + until.slice(3)) : null;
+    const done = () => custom ? custom(s) : until === 'hazard' ? s.hazards.some((h) => h.t < 0.9 && h.s - s.p < 14) : until === 'bosshaz' ? s.hazards.some((h) => h.kind === 'slam' && h.t < 0.7) : until === 'charge' ? s.charge >= 1 : until === 'boss' ? s.bossHold : until === 'contact' ? s.enemies.some((e) => e.hp > 0 && e.type !== 'spitter' && e.z > 0.6 && e.z < s.squadR + 1.5 && Math.abs(e.x - s.x) < s.squadR + 0.8) : false;
     while (!s.result && (s.t < ff || (until && !done())) && i < 60 * 200) { if (i++ % 6 === 0) s.targetX = hb.botThink(s); s.step(); s.events.length = 0; }
   }, [+ff, until]);
   let last = 0;

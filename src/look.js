@@ -2,14 +2,15 @@
 
 const { INFANTRY } = __m["src/data.js"];
 
-// mesh = which model, col = base colour, s = size, walk = stride speed
+// mesh = which model, col = base colour, s = size, walk = stride speed,
+// atk = seconds its attack takes: it starts that long before reaching the squad
 const ENEMY_LOOK = {
-  grunt: { mesh: 'grunt', col: [0.95, 0.27, 0.3], s: 1.0, walk: 7.5 },
-  runner: { mesh: 'runner', col: [1.0, 0.56, 0.2], s: 1.0, walk: 14 },
-  brute: { mesh: 'brute', col: [0.88, 0.22, 0.42], s: 1.12, walk: 5 },
-  shield: { mesh: 'shield', col: [0.66, 0.36, 0.95], s: 1.04, walk: 6.5 },
-  bomber: { mesh: 'bomber', col: [1.0, 0.78, 0.1], s: 1.05, walk: 13 },
-  giant: { mesh: 'giant', col: [0.74, 0.16, 0.38], s: 1.95, walk: 3.6 },
+  grunt: { mesh: 'grunt', col: [0.95, 0.27, 0.3], s: 1.0, walk: 7.5, atk: 0.5 },
+  runner: { mesh: 'runner', col: [1.0, 0.56, 0.2], s: 1.0, walk: 14, atk: 0.42 },
+  brute: { mesh: 'brute', col: [0.88, 0.22, 0.42], s: 1.12, walk: 5, atk: 0.7 },
+  shield: { mesh: 'shield', col: [0.66, 0.36, 0.95], s: 1.04, walk: 6.5, atk: 0.6 },
+  bomber: { mesh: 'bomber', col: [1.0, 0.78, 0.1], s: 1.05, walk: 13, atk: 0.5 },
+  giant: { mesh: 'giant', col: [0.74, 0.16, 0.38], s: 1.95, walk: 3.6, atk: 0.95 },
   spitter: { mesh: 'spitter', col: [0.42, 0.86, 0.3], s: 1.08, walk: 6 },
 };
 // Crowd types switch to a lighter model beyond this distance.

@@ -67,10 +67,30 @@ their rank's colour and lit accents in a pale shade of it; each rank adds
 armour, up to a caped commander.
 
 The bake paints ambient occlusion and lighter chamfered edges into vertex
-colours, and each mesh is packed into the 17-byte vertex format the game's
-shader reads (position, normal, colour, tint, walk-cycle swing with its hinge
-height and depth, glow). The hinge depth is what lets a four-legged body move
-each leg about its own hip.
+colours, and each mesh is packed into the 15-byte vertex format the game's
+shader reads (position, normal, colour, tint, glow, bone).
+
+## Animation
+
+Every figure has a skeleton (`Rig` in `art/kit.py`): hips, chest, head, upper
+and lower arms and legs, plus extras such as the hound's jaw and tail. Each
+part of a model is carried rigidly by one bone, like a jointed toy.
+
+Clips are written in `art/anim.py` as functions from a phase to a pose: walk
+cycles with knees that fold through the stride, and an attack per enemy (the
+grunt's two-handed claw, the hound's pounce, the shieldbearer's spear thrust,
+the golem's overhead smash, the spitter rearing back to spit). The build bakes
+them to 16 or so frames each and packs them as a quaternion and a shift per
+bone, about 29 KB in all.
+
+In the game the frames become a float texture, one row per frame. Each
+instance carries the two frames it is between, and the vertex shader moves
+every vertex with its bone, so hundreds of figures animate in one draw call.
+The renderer picks the clip: enemies walk until they are about to reach the
+squad, then play their attack timed so the blow lands on arrival; the boss
+winds up while its marked ground counts down; troopers march or stand ready.
+
+`python art/build_art.py anim` renders filmstrips of every clip into `out/`.
 
 To change a model and rebuild:
 

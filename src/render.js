@@ -3,7 +3,9 @@
 // Two kinds of thing are drawn, each many at a time (instancing):
 //   meshes  - solid 3D models (made in Blender, see meshes.js), lit per pixel: sun, sky, a rim
 //             highlight, and two moving lights (muzzle flash, latest explosion).
-//             Legs and arms are animated on the graphics card.
+//             Each model has a skeleton; every instance carries which two
+//             animation frames it is between, and the graphics card moves each
+//             vertex with its bone.
 //   sprites - flat shapes with a soft procedural falloff: shadows under every
 //             figure, splats and scorch marks on the road, tracers, muzzle
 //             flashes, fireballs, shockwave rings, smoke. No image files.
@@ -12,21 +14,21 @@
 // The simulation uses z = distance ahead of the squad. On screen that is "up
 // the road", which in GL is -z, so world z is negated when drawing.
 
-const { ROAD_HALF, INFANTRY, byId, fmt } = __m["src/data.js"];
-const { buildMeshes, VERT_SIZE } = __m["src/meshes.js"];
+const { ROAD_HALF, SCROLL, INFANTRY, byId, fmt } = __m["src/data.js"];
+const { buildMeshes, decodeAnim, VERT_SIZE } = __m["src/meshes.js"];
 const { ENEMY_LOOK, FAR_Z, FAR_MESH, WEAPON_LOOK, GATE_COLORS, HAZARD_COLORS, bossColor, BOSS_SCALE, squadMeshes, enemySize, enemyShade, squadSlot } = __m["src/look.js"];
 const MESH_VERT = `#version 300 es
 layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNor;
 layout(location=2) in vec4 aCol;   // rgb, tint
-layout(location=3) in vec4 aAnim;  // swing, pivot height, glow, pivot depth
+layout(location=3) in vec2 aAnim;  // glow, bone
 layout(location=4) in vec3 iPos;
 layout(location=5) in vec3 iScale;
 layout(location=6) in vec4 iColor; // rgb, yaw
-layout(location=7) in vec4 iFx;    // glow, flash, walk phase, pitch
-layout(location=8) in vec2 iMisc;  // walk speed, alpha
+layout(location=7) in vec4 iFx;    // glow, flash, animation frame (row + blend), pitch
+layout(location=8) in vec2 iMisc;  // next animation frame (row), alpha
 uniform mat4 uVP;
-uniform float uTime;
+uniform highp sampler2D uAnim;     // one row per animation frame, three cells per bone
 uniform vec2 uFog;
 out vec3 vCol;
 out vec3 vNor;
@@ -36,13 +38,17 @@ out vec3 vFx;
 vec3 rotX(vec3 v, float a) { float c = cos(a), s = sin(a); return vec3(v.x, v.y * c - v.z * s, v.y * s + v.z * c); }
 vec3 rotY(vec3 v, float a) { float c = cos(a), s = sin(a); return vec3(v.x * c + v.z * s, v.y, -v.x * s + v.z * c); }
 void main() {
-  vec3 p = aPos;
-  vec3 n = aNor;
-  if (aAnim.x != 0.0 && iMisc.x > 0.0) {
-    float a = aAnim.x * sin(uTime * iMisc.x + iFx.z);
-    p.yz -= aAnim.yw; p = rotX(p, a); p.yz += aAnim.yw;
-    n = rotX(n, a);
-  }
+  // Skeleton: fetch this vertex's bone from the two frames and blend them.
+  int bx = int(aAnim.y + 0.5) * 3;
+  float fa = floor(iFx.z);
+  float fr = iFx.z - fa;
+  int ra = int(fa), rb = int(iMisc.x + 0.5);
+  vec4 m0 = mix(texelFetch(uAnim, ivec2(bx, ra), 0), texelFetch(uAnim, ivec2(bx, rb), 0), fr);
+  vec4 m1 = mix(texelFetch(uAnim, ivec2(bx + 1, ra), 0), texelFetch(uAnim, ivec2(bx + 1, rb), 0), fr);
+  vec4 m2 = mix(texelFetch(uAnim, ivec2(bx + 2, ra), 0), texelFetch(uAnim, ivec2(bx + 2, rb), 0), fr);
+  vec4 rest = vec4(aPos, 1.0);
+  vec3 p = vec3(dot(m0, rest), dot(m1, rest), dot(m2, rest));
+  vec3 n = vec3(dot(m0.xyz, aNor), dot(m1.xyz, aNor), dot(m2.xyz, aNor));
   p *= iScale;
   p = rotY(rotX(p, iFx.w), iColor.a);
   n = rotY(rotX(n, iFx.w), iColor.a);
@@ -52,7 +58,7 @@ void main() {
   vNor = n;
   vPos = w;
   vFog = clamp((gl_Position.w - uFog.x) / (uFog.y - uFog.x), 0.0, 1.0);
-  vFx = vec3(max(iFx.x, aAnim.z), iFx.y, iMisc.y);
+  vFx = vec3(max(iFx.x, aAnim.x), iFx.y, iMisc.y);
 }`;
 
 const MESH_FRAG = `#version 300 es
@@ -244,7 +250,7 @@ class Batch {
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.idx, gl.STATIC_DRAW);
     }
     const vb = VERT_SIZE * 4;
-    [[0, 3, 0], [1, 3, 12], [2, 4, 24], [3, 4, 40]].forEach(([loc, size, off]) => {
+    [[0, 3, 0], [1, 3, 12], [2, 4, 24], [3, 2, 40]].forEach(([loc, size, off]) => {
       gl.enableVertexAttribArray(loc);
       gl.vertexAttribPointer(loc, size, gl.FLOAT, false, vb, off);
     });
@@ -258,16 +264,17 @@ class Batch {
     });
     gl.bindVertexArray(null);
   }
-  // world position (x, y, z-ahead), scale, colour, yaw, then optional extras
-  add(x, y, z, sx, sy, sz, col, yaw = 0, glow = 0, flash = 0, phase = 0, pitch = 0, walk = 0, alpha = 1) {
+  // world position (x, y, z-ahead), scale, colour, yaw, then optional extras.
+  // frameA/frameB say which animation frames to blend (see pose); 0 is the rest pose.
+  add(x, y, z, sx, sy, sz, col, yaw = 0, glow = 0, flash = 0, frameA = 0, pitch = 0, frameB = 0, alpha = 1) {
     if (this.n >= this.cap) return;
     const d = this.data;
     const o = this.n++ * STRIDE;
     d[o] = x; d[o + 1] = y; d[o + 2] = -z;
     d[o + 3] = sx; d[o + 4] = sy; d[o + 5] = sz;
     d[o + 6] = col[0]; d[o + 7] = col[1]; d[o + 8] = col[2]; d[o + 9] = yaw;
-    d[o + 10] = glow; d[o + 11] = flash; d[o + 12] = phase; d[o + 13] = pitch;
-    d[o + 14] = walk; d[o + 15] = alpha;
+    d[o + 10] = glow; d[o + 11] = flash; d[o + 12] = frameA; d[o + 13] = pitch;
+    d[o + 14] = frameB; d[o + 15] = alpha;
   }
   flush() {
     const gl = this.gl;
@@ -336,9 +343,19 @@ class Renderer {
     this.prog = program(gl, MESH_VERT, MESH_FRAG);
     this.sprog = program(gl, SPRITE_VERT, SPRITE_FRAG);
     const loc = (p, names) => Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(p, n)]));
-    this.u = loc(this.prog, ['uVP', 'uTime', 'uFog', 'uFogCol', 'uEye', 'uAlpha', 'uLightPos', 'uLightCol']);
+    this.u = loc(this.prog, ['uVP', 'uAnim', 'uFog', 'uFogCol', 'uEye', 'uAlpha', 'uLightPos', 'uLightCol']);
     this.su = loc(this.sprog, ['uVP', 'uRight', 'uUp', 'uFog', 'uFogCol', 'uAdd']);
     const m = buildMeshes();
+    // The animation table lives in a float texture the vertex shader reads.
+    this.anim = decodeAnim();
+    this.animTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.animTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, this.anim.width, this.anim.height, 0, gl.RGBA, gl.FLOAT, this.anim.data);
+    for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) {
+      gl.texParameteri(gl.TEXTURE_2D, k, v);
+    }
+    this.fa = 0; // the frame pair chosen by the last pose() call
+    this.fb = 0;
     // How many of each model can be on screen at once.
     const caps = {
       box: 1400, chunk: 460, grunt: 900, grunt_far: 900, runner: 500, runner_far: 500, shield: 320, shield_far: 320,
@@ -399,6 +416,23 @@ class Renderer {
     this.right = [view[0], view[4], view[8]];
     this.up = [view[1], view[5], view[9]];
     this.pxPerUnit = this.h / 2 / Math.tan(fovy / 2);
+  }
+
+  // Choose the animation frames for a model: `clip` of the skeleton that
+  // `mesh` uses, at position u (0..1; a looping clip wraps, others hold their
+  // last frame). The result is left in this.fa / this.fb for Batch.add.
+  pose(mesh, clip, u) {
+    const rig = this.anim.rigs[this.anim.mesh[mesh]];
+    const c = rig && rig.clips[clip];
+    if (!c) {
+      this.fa = this.fb = 0;
+      return;
+    }
+    const n = c[1];
+    const f = c[2] ? (u - Math.floor(u)) * n : Math.min(1, Math.max(0, u)) * (n - 1);
+    const i = Math.min(n - 1, Math.floor(f));
+    this.fa = c[0] + i + Math.min(0.999, f - i);
+    this.fb = c[0] + (c[2] ? (i + 1) % n : Math.min(n - 1, i + 1));
   }
 
   // Where a screen position (canvas pixels from the left) falls across the
@@ -521,17 +555,33 @@ class Renderer {
 
   drawHorde(sim, fx, time) {
     const b = this.b;
+    this.striking = 0; // how many are mid-attack this frame (read by tests)
+    const R = sim.squadR;
+    const march = sim.bossHold || sim.result ? 0 : SCROLL; // how fast the squad closes on them
     for (const e of sim.enemies) {
       if (e.hp <= 0 || e.z > 80) continue;
       const lk = ENEMY_LOOK[e.type];
       const size = lk.s * enemySize(e.phase);
-      // Two footfalls per stride, in step with the leg swing done in the shader.
-      const bob = Math.abs(Math.sin(time * lk.walk + e.phase)) * 0.07 * size;
+      const bob = 0; // the walk cycle itself lifts and drops the body
+      // Walking, unless it is about to strike: the attack is timed so the blow
+      // lands as it reaches the squad. A spitter rears back before it fires.
+      let strike = -1;
+      if (e.type === 'spitter') {
+        if (e.cd < 0.3 && e.z > 9 && e.z < 38) strike = (1 - Math.max(0, e.cd) / 0.3) * 0.5;
+        else if (e.spat < 0.35) strike = 0.5 + (e.spat / 0.35) * 0.5;
+      } else if (lk.atk) {
+        const tHit = (e.z - (R + e.r) * 0.8) / (e.speed + march);
+        if (tHit < lk.atk * 0.88 && Math.abs(e.x - sim.x) < R + e.r + 0.7) strike = 0.88 - tHit / lk.atk;
+      }
+      if (strike >= 0) {
+        this.pose(lk.mesh, 'attack', strike);
+        this.striking++;
+      } else this.pose(lk.mesh, 'walk', (time * lk.walk + e.phase) / 6.2832);
       const hit = e.flash > 0 ? e.flash : 0;
       const pulse = e.type === 'bomber' ? 0.25 + 0.25 * Math.sin(time * 16 + e.phase) : 0;
       // Lean back when shot; weave a little while walking. Far-off bodies use a lighter model.
       const batch = e.z > this.farZ && FAR_MESH[lk.mesh] ? b[lk.mesh + '_far'] : b[lk.mesh];
-      batch.add(e.x, bob, e.z, size, size, size, enemyShade(lk.col, e.phase), Math.sin(time * lk.walk * 0.5 + e.phase) * 0.14, 0, Math.max(hit, pulse), e.phase, -hit * 0.3, lk.walk);
+      batch.add(e.x, bob, e.z, size, size, size, enemyShade(lk.col, e.phase), Math.sin(time * lk.walk * 0.5 + e.phase) * 0.05, 0, Math.max(hit, pulse), this.fa, -hit * 0.3, this.fb);
       if (e.type === 'spitter') this.glow.add(e.x, 1.1 * size + bob, e.z + 0.1, 0.75, 0.75, 0, 0, [0.5, 1, 0.25], 0.3 + 0.12 * Math.sin(time * 5 + e.phase), 0);
       this.shadow(e.x, e.z, e.r * 1.25 * (1 - bob));
       if (e.type === 'bomber') this.glow.add(e.x, 1.32 * size + bob, e.z, 0.3, 0.3, 0, 0, [1, 0.7, 0.2], 0.6 + 0.4 * Math.sin(time * 30 + e.phase), 0);
@@ -542,9 +592,25 @@ class Renderer {
       const dying = boss.hp <= 0;
       const x = dying ? bd.x + (Math.random() - 0.5) * 0.3 : boss.x;
       const z = dying ? bd.z : boss.z;
-      const stomp = dying ? 0 : Math.abs(Math.sin(time * 2.4)) * 0.2;
+      const stomp = 0;
+      // The boss winds up while its marked ground counts down and brings the
+      // blow down as it lands; it does the same as it closes on the squad.
+      let strike = -1;
+      if (!dying) {
+        let slam = null;
+        for (const h of sim.hazards) if (h.kind === 'slam' && (!slam || h.t < slam.t)) slam = h;
+        if (slam) strike = (1 - Math.max(0, slam.t) / slam.t0) * 0.85;
+        else if (fx.bossHit < 0.45) strike = 0.85 + (fx.bossHit / 0.45) * 0.15;
+        else if (sim.bossHold && boss.stun <= 0) {
+          const tHit = (boss.z - (R + 1.3)) / sim.L.boss.speed;
+          if (tHit < 0.9 * 0.85) strike = 0.85 - tHit / 0.9;
+        }
+      }
+      if (strike >= 0) this.pose('boss', 'attack', strike);
+      else if (!dying && sim.bossHold && boss.stun <= 0) this.pose('boss', 'walk', (time * 2.4) / 6.2832);
+      else this.pose('boss', 'none', 0);
       const flash = dying ? 0.35 + 0.35 * Math.sin(time * 40) : boss.flash > 0 ? boss.flash * 0.7 : 0;
-      b.boss.add(x, stomp, z, BOSS_SCALE, BOSS_SCALE, BOSS_SCALE, bossColor(sim.L.n), Math.sin(time * 1.2) * 0.1, 0, flash, 0, dying ? -bd.t * 0.25 : -flash * 0.08, dying ? 0 : 2.4);
+      b.boss.add(x, stomp, z, BOSS_SCALE, BOSS_SCALE, BOSS_SCALE, bossColor(sim.L.n), Math.sin(time * 1.2) * 0.06, 0, flash, this.fa, dying ? -bd.t * 0.25 : -flash * 0.08, this.fb);
       this.shadow(x, z, 3.4, 0.42);
       this.glow.add(x, 3.0, z - 1.0, 1.6, 1.6, 0, 0, [1, 0.5, 0.15], 0.5 + 0.2 * Math.sin(time * 6), 0); // chest core
     }
@@ -554,8 +620,10 @@ class Renderer {
       const col = [c.col[0] * fade, c.col[1] * fade, c.col[2] * fade];
       const y = c.y + 0.12 * c.s * Math.min(1, Math.abs(c.pitch));
       // A fallen trooper is two models: the body and the arms that still hold the gun.
+      // The body keeps the stride it was caught in.
+      this.pose(c.mesh === 'soldier' ? sq.body : c.mesh, 'walk', c.phase / 6.2832);
       for (const mesh of c.mesh === 'soldier' ? [sq.body, sq.arms] : [c.mesh]) {
-        b[mesh].add(c.x, y, c.z, c.s, c.s, c.s, col, c.yaw, 0, c.flash, c.phase, c.pitch, 0);
+        b[mesh].add(c.x, y, c.z, c.s, c.s, c.s, col, c.yaw, 0, c.flash, this.fa, c.pitch, this.fb);
       }
       if (c.y > -0.2) this.shadow(c.x, c.z, 0.5 * c.s, 0.3 * Math.max(0, 1 - c.y * 0.4) * (c.landed ? Math.max(0, 1 - c.rest * 2) : 1));
     }
@@ -567,14 +635,17 @@ class Renderer {
     const body = this.b[sq.body];
     const arms = this.b[sq.arms];
     const nVis = Math.min(sim.count, 60);
+    const marching = sim.t > 0 && !sim.bossHold && !sim.result; // otherwise they stand ready
     const lean = Math.max(-0.35, Math.min(0.35, (sim.targetX - sim.x) * 0.25));
     for (let i = 0; i < nVis; i++) {
       const s = squadSlot(sim, i, nVis);
       const ph = i * 1.7;
-      const bob = Math.abs(Math.sin(time * 9 + ph)) * 0.05;
+      const bob = 0;
+      if (marching) this.pose(sq.body, 'walk', (time * 9 + ph) / 6.2832);
+      else this.pose(sq.body, 'idle', time * 0.35 + ph);
       // Each volley kicks the troopers back a touch.
-      body.add(s.x, bob, s.z - fx.recoil * 0.06, 0.92, 0.92, 0.92, inf.color, lean, 0, fx.squadFlash, ph, fx.recoil * 0.1, 9);
-      arms.add(s.x, bob, s.z - fx.recoil * 0.06, 0.92, 0.92, 0.92, inf.color, lean, 0, fx.squadFlash, ph, fx.recoil * 0.1, 9);
+      body.add(s.x, bob, s.z - fx.recoil * 0.06, 0.92, 0.92, 0.92, inf.color, lean, 0, fx.squadFlash, this.fa, fx.recoil * 0.1, this.fb);
+      arms.add(s.x, bob, s.z - fx.recoil * 0.06, 0.92, 0.92, 0.92, inf.color, lean, 0, fx.squadFlash, this.fa, fx.recoil * 0.1, this.fb);
       this.shadow(s.x, s.z, 0.42, 0.3);
     }
   }
@@ -686,7 +757,9 @@ class Renderer {
     // 1. Solid models.
     gl.useProgram(this.prog);
     gl.uniformMatrix4fv(this.u.uVP, false, this.vp);
-    gl.uniform1f(this.u.uTime, time % 3600);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.animTex);
+    gl.uniform1i(this.u.uAnim, 0);
     gl.uniform2f(this.u.uFog, 52, 105);
     gl.uniform3f(this.u.uFogCol, SKY[0], SKY[1], SKY[2]);
     gl.uniform3f(this.u.uEye, this.eye[0], this.eye[1], this.eye[2]);

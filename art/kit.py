@@ -8,7 +8,7 @@ Game coordinates:    x right, y up, enemies face +z, troopers face -z.
 Every part carries the attributes the game's vertex shader understands:
   col    base colour
   tint   1 = multiplied by the instance colour in game
-  swing  radians the part swings about a hinge at height `pivot` (walk cycle)
+  bone   which bone of the model's rig carries the part (see Rig)
   glow   ignores lighting
 """
 import math
@@ -42,15 +42,56 @@ def _rot(rot):
 
 
 class Part:
-    __slots__ = ('bm', 'col', 'tint', 'swing', 'pivot', 'pivot_f', 'glow', 'smooth', 'ao')
+    __slots__ = ('bm', 'col', 'tint', 'bone', 'glow', 'smooth', 'ao')
+
+
+class Rig:
+    """A skeleton: named bones, each hinged at a pivot and hanging off a parent.
+    Every part of a model is carried rigidly by one bone, like a jointed toy.
+    A pose gives each bone a rotation (degrees, about its pivot) and a shift;
+    children inherit their parent's movement."""
+
+    def __init__(self, name, bones, head=None, waist=0.0):
+        self.name = name
+        self.names = [b[0] for b in bones]
+        self.parent = [-1 if b[1] is None else self.names.index(b[1]) for b in bones]
+        self.pivot = [Vector(b[2]) for b in bones]
+        self.head = head    # (centre, radius): unassigned parts inside it ride the head
+        self.waist = waist  # unassigned parts below this height ride the hips
+
+    def auto(self, centre):
+        if self.head and (centre - Vector(self.head[0])).length < self.head[1]:
+            return 'head'
+        return 'root' if centre.z < self.waist else 'chest'
+
+    def matrices(self, pose):
+        """World matrix of every bone for a pose {bone: {'rot': (x, y, z), 'move': (x, y, z)}}."""
+        out = []
+        for i, name in enumerate(self.names):
+            ch = pose.get(name, {})
+            h = self.pivot[i]
+            local = Matrix.Translation(h + Vector(ch.get('move', (0, 0, 0)))) @ _rot(ch.get('rot', (0, 0, 0))) @ Matrix.Translation(-h)
+            out.append(local if self.parent[i] < 0 else out[self.parent[i]] @ local)
+        return out
 
 
 class Model:
-    def __init__(self, name, face=1, ground=True):
+    def __init__(self, name, face=1, ground=True, rig=None, bone=None):
         self.name = name
         self.ground = ground
         self.face = face  # 1: faces +z in game (enemies); -1: faces -z (troopers)
+        self.rig = rig
+        self.bone = bone  # default bone for parts that name none
         self.parts = []
+
+    def _bone_of(self, bm, kw):
+        if kw.get('bone'):
+            return kw['bone']
+        if self.bone or not self.rig:
+            return self.bone
+        lo = Vector((min(v.co.x for v in bm.verts), min(v.co.y for v in bm.verts), min(v.co.z for v in bm.verts)))
+        hi = Vector((max(v.co.x for v in bm.verts), max(v.co.y for v in bm.verts), max(v.co.z for v in bm.verts)))
+        return self.rig.auto((lo + hi) / 2)
 
     # ---- bookkeeping ----
     def _add(self, bm, kw):
@@ -62,9 +103,9 @@ class Model:
         p.bm = bm
         p.col = tuple(kw.get('col', (1, 1, 1)))
         p.tint = kw.get('tint', 0)
-        p.swing = kw.get('swing', 0)
-        p.pivot = kw.get('pivot', 0)
-        p.pivot_f = kw.get('pivot_f', 0)  # how far forward of the figure's centre the hinge sits
+        p.bone = self._bone_of(bm, kw)
+        if self.rig and p.bone not in self.rig.names:
+            raise ValueError('%s: no bone %r' % (self.name, p.bone))
         p.glow = kw.get('glow', 0)
         p.smooth = kw.get('smooth', 40)
         p.ao = kw.get('ao', p.glow < 0.5)
@@ -77,7 +118,8 @@ class Model:
             for k in Part.__slots__:
                 setattr(q, k, getattr(p, k))
             q.bm = bm2
-            q.swing = p.swing if kw['mirror'] == 'same' else -p.swing
+            if p.bone and p.bone.endswith('_r'):
+                q.bone = p.bone[:-2] + '_l'  # the mirrored part rides the opposite limb
             self.parts.append(q)
         return p
 
@@ -397,12 +439,11 @@ def pack(model, recs):
     for gp, gn, p, shade in conv:
         l = math.sqrt(gn[0] ** 2 + gn[1] ** 2 + gn[2] ** 2) or 1
         rec = struct.pack(
-            '<hhhbbbBBBBbBBb',
+            '<hhhbbbBBBBBB',
             *(int(round(c / ext * 32767)) for c in gp),
             *(int(round(c / l * 127)) for c in gn),
             qc(p.col[0] * shade), qc(p.col[1] * shade), qc(p.col[2] * shade),
-            q8(p.tint), max(-127, min(127, int(round(p.swing * 100)))), max(0, min(255, int(round(p.pivot * 200)))), q8(p.glow),
-            max(-127, min(127, int(round(p.pivot_f * f * 50)))),
+            q8(p.tint), q8(p.glow), model.rig.names.index(p.bone) if model.rig else 0,
         )
         i = index.get(rec)
         if i is None:
@@ -415,7 +456,7 @@ def pack(model, recs):
 
 # ---------------------------------------------------------------- preview
 
-def preview_object(model, recs, meshes, tint=(1, 1, 1), loc=(0, 0, 0), rot_z=0.0, scale=1.0):
+def preview_object(model, recs, meshes, tint=(1, 1, 1), loc=(0, 0, 0), rot_z=0.0, scale=1.0, pose=None):
     """Turn baked parts into Blender objects coloured as the game would."""
     mat = bpy.data.materials.get('hb_vcol')
     if mat is None:
@@ -450,9 +491,10 @@ def preview_object(model, recs, meshes, tint=(1, 1, 1), loc=(0, 0, 0), rot_z=0.0
         me.materials.append(mat)
         ob = bpy.data.objects.new(me.name, me)
         bpy.context.scene.collection.objects.link(ob)
-        ob.location = loc
-        ob.rotation_euler = (0, 0, rot_z)
-        ob.scale = (scale, scale, scale)
+        placed = Matrix.Translation(loc) @ Matrix.Rotation(rot_z, 4, 'Z') @ Matrix.Diagonal((scale, scale, scale, 1))
+        if pose and model.rig and p.bone:
+            placed = placed @ pose[model.rig.names.index(p.bone)]  # each part follows its bone
+        ob.matrix_world = placed
         objs.append(ob)
     return objs
 
@@ -508,3 +550,25 @@ def add_ground(sc, col=(0.4, 0.43, 0.54), size=60):
     ob = bpy.data.objects.new('ground', me)
     sc.collection.objects.link(ob)
     return ob
+
+
+# ---------------------------------------------------------------- animation
+
+def bake_clip(rig, fn, frames, loop):
+    """Sample a pose function over one clip: a list of per-bone matrices per frame."""
+    us = [i / frames for i in range(frames)] if loop else [i / (frames - 1) for i in range(frames)]
+    return [rig.matrices(fn(u)) for u in us]
+
+
+def pack_frame(mats, face):
+    """One frame as int16: per bone a quaternion (x32767) and a shift (x4096), in game space."""
+    c = Matrix(((1, 0, 0, 0), (0, 0, 1, 0), (0, -1 if face > 0 else 1, 0, 0), (0, 0, 0, 1)))
+    ci = c.inverted()
+    out = bytearray()
+    for m in mats:
+        g = c @ m @ ci
+        q = g.to_3x3().to_quaternion()
+        t = g.to_translation()
+        out += struct.pack('<7h', *(max(-32767, min(32767, int(round(v * 32767)))) for v in (q.w, q.x, q.y, q.z)),
+                           *(max(-32767, min(32767, int(round(v * 4096)))) for v in t))
+    return bytes(out)

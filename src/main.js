@@ -343,6 +343,6 @@ goHome();
 requestAnimationFrame(frame);
 
 // Handy for testing from the browser console.
-window.__hordebreak = { save, botThink, goHome, fx, get sim() { return sim; }, get plan() { return plan; }, get state() { return state; } };
+window.__hordebreak = { save, botThink, goHome, fx, renderer, get sim() { return sim; }, get plan() { return plan; }, get state() { return state; } };
 
 return {  };
