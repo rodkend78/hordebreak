@@ -258,7 +258,7 @@ class Fx {
     const slamHit = ev.some((e) => e.t === 'blast' && e.kind === 'slam' && e.hit);
     for (const e of ev) {
       switch (e.t) {
-        case 'shot': this.shot(sim); sound.play('shot'); break;
+        case 'shot': this.shot(sim); sound.shot(sim.lo.weapon); break;
         case 'hit': if (hits++ < 10) this.hit(e, sim); break;
         case 'kill': this.kill(e, sim); sound.play('kill'); break;
         case 'gate': {

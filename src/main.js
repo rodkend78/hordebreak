@@ -121,6 +121,7 @@ function onBuy(offer) {
   const wasOwned = offer.kind !== 'upgrade' && offer.owned;
   if (buy(save, offer)) {
     sound.play(wasOwned ? 'tap' : 'buy');
+    if (offer.kind === 'weapon') sound.shot(offer.item.id, 0.16); // let the new weapon be heard
     storeSave();
   }
   const list = el('armory-list');
@@ -344,6 +345,6 @@ goHome();
 requestAnimationFrame(frame);
 
 // Handy for testing from the browser console.
-window.__hordebreak = { save, botThink, goHome, fx, renderer, get sim() { return sim; }, get plan() { return plan; }, get state() { return state; } };
+window.__hordebreak = { save, botThink, goHome, fx, renderer, sound, get sim() { return sim; }, get plan() { return plan; }, get state() { return state; } };
 
 return {  };

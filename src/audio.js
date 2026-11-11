@@ -6,6 +6,7 @@ class Sound {
     this.ctx = null;
     this.on = true;
     this.last = {};
+    this.noiseBuf = {}; // noise bursts, kept by length so rapid fire does not rebuild them
   }
 
   unlock() {
@@ -40,34 +41,57 @@ class Sound {
     o.stop(t + dur + 0.02);
   }
 
-  noise(dur, vol = 0.2, cutoff = 1200) {
+  // A burst of filtered noise that dies away. `type` picks the filter
+  // (lowpass for thumps, highpass for cracks, bandpass for hiss), `sweep`
+  // slides its frequency there over the burst, `delay` starts it later.
+  noise(dur, vol = 0.2, cutoff = 1200, type = 'lowpass', sweep = 0, delay = 0) {
     const c = this.ctx;
-    const n = Math.floor(c.sampleRate * dur);
-    const buf = c.createBuffer(1, n, c.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const key = Math.round(dur * 1000);
+    let buf = this.noiseBuf[key];
+    if (!buf) {
+      const n = Math.max(1, Math.floor(c.sampleRate * dur));
+      buf = c.createBuffer(1, n, c.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      this.noiseBuf[key] = buf;
+    }
+    const t = c.currentTime + delay;
     const src = c.createBufferSource();
     src.buffer = buf;
     const f = c.createBiquadFilter();
-    f.type = 'lowpass';
-    f.frequency.value = cutoff;
+    f.type = type;
+    f.frequency.setValueAtTime(cutoff, t);
+    if (sweep) f.frequency.exponentialRampToValueAtTime(Math.max(40, sweep), t + dur);
     const g = c.createGain();
     g.gain.value = vol;
     src.connect(f);
     f.connect(g);
     g.connect(this.master);
-    src.start();
+    src.start(t);
+  }
+
+  // The report of one volley. Every weapon has its own; `delay` is for the
+  // armory, which plays it just after the equip click.
+  shot(weapon, delay = 0) {
+    if (!this.on || !this.ctx || this.ctx.state !== 'running') return;
+    const now = this.ctx.currentTime;
+    if (!delay && now - (this.last.shot || 0) < 0.062) return; // rapid weapons would otherwise smear
+    this.last.shot = now;
+    try {
+      (SHOTS[weapon] || SHOTS.rifle)(this, delay);
+    } catch (e) {
+      /* sound is optional */
+    }
   }
 
   play(name) {
     if (!this.on || !this.ctx || this.ctx.state !== 'running') return;
     const now = this.ctx.currentTime;
-    const gap = { shot: 0.07, kill: 0.045, hit: 0.06, breach: 0.09, boom: 0.08, spit: 0.12, splash: 0.1, warn: 0.3 }[name] || 0;
+    const gap = { kill: 0.045, hit: 0.06, breach: 0.09, boom: 0.08, spit: 0.12, splash: 0.1, warn: 0.3 }[name] || 0;
     if (gap && now - (this.last[name] || 0) < gap) return;
     this.last[name] = now;
     try {
       switch (name) {
-        case 'shot': this.tone(620, 0.04, 'square', 0.035, -300); break;
         case 'kill': this.tone(300 + Math.random() * 120, 0.07, 'triangle', 0.09, -180); break;
         case 'gate': this.tone(520, 0.09, 'square', 0.12); this.tone(780, 0.14, 'square', 0.12, 0, 0.08); break;
         case 'bad': this.tone(260, 0.22, 'sawtooth', 0.13, -150); break;
@@ -94,4 +118,34 @@ class Sound {
   }
 }
 
-return { Sound };
+// What each weapon sounds like, built from the two generators above:
+// tone(freq, dur, wave, vol, slide, delay) and noise(dur, vol, cutoff, filter, sweep, delay).
+const SHOTS = {
+  // A dry crack with a short body.
+  rifle(s, d) { s.noise(0.05, 0.08, 1800, 'highpass', 0, d); s.tone(420, 0.06, 'square', 0.045, -260, d); },
+  // Lighter and tighter: a tick.
+  smg(s, d) { s.noise(0.03, 0.055, 2600, 'highpass', 0, d); s.tone(720, 0.035, 'square', 0.035, -380, d); },
+  // A boom that rolls off.
+  shotgun(s, d) { s.noise(0.16, 0.2, 1100, 'lowpass', 300, d); s.tone(150, 0.16, 'sawtooth', 0.09, -95, d); },
+  // The rotary cannon: a heavy, blunt thud.
+  mg(s, d) { s.noise(0.045, 0.13, 1300, 'lowpass', 0, d); s.tone(230, 0.05, 'square', 0.06, -130, d); },
+  // An electric snap falling to a hum.
+  rail(s, d) { s.tone(2200, 0.16, 'sawtooth', 0.06, -2050, d); s.tone(110, 0.14, 'sine', 0.1, -40, d); s.noise(0.05, 0.05, 5000, 'highpass', 0, d); },
+  // A whoosh as the rocket leaves the tube.
+  rocket(s, d) { s.noise(0.3, 0.16, 500, 'bandpass', 2400, d); s.tone(190, 0.22, 'sine', 0.07, -120, d); },
+  // A falling two-voice "pew".
+  plasma(s, d) { s.tone(980, 0.13, 'sine', 0.07, -640, d); s.tone(1470, 0.09, 'triangle', 0.035, -900, d); },
+  // A thin, bright pip.
+  laser(s, d) { s.tone(1700, 0.055, 'square', 0.028, -700, d); s.tone(2550, 0.04, 'sine', 0.03, -900, d); },
+  // Three rockets, a beat apart.
+  cluster(s, d) {
+    for (let i = 0; i < 3; i++) s.noise(0.2, 0.11, 600 + i * 150, 'bandpass', 2600, d + i * 0.06);
+    s.tone(170, 0.24, 'sine', 0.06, -110, d);
+  },
+  // A deep discharge under a falling shriek.
+  nova(s, d) { s.tone(260, 0.26, 'sawtooth', 0.09, -200, d); s.tone(1500, 0.2, 'sine', 0.055, -1250, d); s.noise(0.12, 0.08, 3000, 'bandpass', 500, d); },
+};
+
+Sound.SHOTS = SHOTS; // reachable from the sound object, for tools
+
+return { Sound, SHOTS };
