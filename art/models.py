@@ -2,7 +2,7 @@
 P(right, forward, up) so a design reads the way the figure stands."""
 import math
 
-from kit import Model
+from kit import Model, Rig
 
 
 def P(x, f, u):
@@ -26,8 +26,8 @@ def sphere_profile(r, n=7, squash=1.0):
     return [(r * math.sin(i / n * math.pi), -r * squash * math.cos(i / n * math.pi)) for i in range(n + 1)]
 
 
-def eyes(m, x, f, u, size=(0.06, 0.035, 0.05), col=EYE):
-    m.box(P(x, f, u), size, col=col, glow=1, bevel=0, mirror=True)
+def eyes(m, x, f, u, size=(0.06, 0.035, 0.05), col=EYE, **kw):
+    m.box(P(x, f, u), size, col=col, glow=1, bevel=0, mirror=True, **kw)
 
 
 # ------------------------------------------------------------------ horde
@@ -52,14 +52,54 @@ def light(m, c, r, axis='f', sides=6, col=AMBER, rim=PLATE_D, flip=False, turn=0
     m.lathe([(r * 0.66, 0.0), (r * 0.6, 0.034 * s)], c, axis=axis, seg=sides, exact=True, turn=turn, col=col, tint=tint, glow=1, **kw)
 
 
+def biped(name, hip_u, hip_x, knee_u, waist_u, neck, shoulder, elbow, head=None, extras=()):
+    """The two-legged skeleton most figures share. Pivots are P(right, forward, up)."""
+    sx, sf, su = shoulder
+    ex, ef, eu = elbow
+    bones = [
+        ('root', None, P(0, 0, hip_u)), ('chest', 'root', P(0, 0, waist_u)), ('head', 'chest', P(*neck)),
+        ('arm_r', 'chest', P(sx, sf, su)), ('fore_r', 'arm_r', P(ex, ef, eu)),
+        ('arm_l', 'chest', P(-sx, sf, su)), ('fore_l', 'arm_l', P(-ex, ef, eu)),
+        ('thigh_r', 'root', P(hip_x, 0, hip_u)), ('shin_r', 'thigh_r', P(hip_x, 0, knee_u)),
+        ('thigh_l', 'root', P(-hip_x, 0, hip_u)), ('shin_l', 'thigh_l', P(-hip_x, 0, knee_u)),
+    ] + list(extras)
+    return Rig(name, bones, head=head, waist=waist_u)
+
+
+RIG_GRUNT = biped('grunt', 0.54, 0.14, 0.33, 0.6, neck=(0, 0.2, 1.05), shoulder=(0.33, 0.12, 0.99), elbow=(0.34, 0.36, 0.86),
+                  head=(P(0, 0.36, 1.12), 0.22))
+RIG_SHIELD = biped('shield', 0.54, 0.14, 0.32, 0.62, neck=(0, 0, 1.1), shoulder=(0.32, 0, 1.0), elbow=(0.36, 0.1, 0.9),
+                   head=(P(0, 0.05, 1.3), 0.3))
+RIG_SPITTER = biped('spitter', 0.5, 0.17, 0.3, 0.56, neck=(0, 0.2, 0.86), shoulder=(0.22, 0.2, 0.82), elbow=(0.25, 0.3, 0.7))
+RIG_HEAVY = biped('heavy', 0.52, 0.22, 0.32, 0.62, neck=(0, 0.12, 1.24), shoulder=(0.66, 0.03, 1.1), elbow=(0.68, 0.05, 0.8),
+                  head=(P(0, 0.28, 1.35), 0.26))
+RIG_TROOPER = biped('trooper', 0.5, 0.13, 0.3, 0.6, neck=(0, 0, 1.0), shoulder=(0.27, 0, 0.9), elbow=(0.3, 0.06, 0.7),
+                    extras=[('gun', 'chest', P(0.2, 0, 0.9))])  # arms and weapon move as one aiming unit
+RIG_BOMBER = Rig('bomber', [
+    ('root', None, P(0, 0, 0.34)), ('chest', 'root', P(0, 0, 0.34)),
+    ('thigh_r', 'root', P(0.18, 0, 0.34)), ('thigh_l', 'root', P(-0.18, 0, 0.34)),
+    ('halo', 'chest', P(0, 0, 1.26)),
+])
+RIG_HOUND = Rig('hound', [
+    ('root', None, P(0, -0.24, 0.56)), ('chest', 'root', P(0, 0.0, 0.56)), ('head', 'chest', P(0, 0.36, 0.64)),
+    ('jaw', 'head', P(0, 0.68, 0.66)), ('tail', 'root', P(0, -0.42, 0.64)),
+    ('fleg_r', 'chest', P(0.15, 0.3, 0.48)), ('fshin_r', 'fleg_r', P(0.16, 0.37, 0.24)),
+    ('fleg_l', 'chest', P(-0.15, 0.3, 0.48)), ('fshin_l', 'fleg_l', P(-0.16, 0.37, 0.24)),
+    ('hleg_r', 'root', P(0.15, -0.26, 0.54)), ('hshin_r', 'hleg_r', P(0.17, -0.42, 0.28)),
+    ('hleg_l', 'root', P(-0.15, -0.26, 0.54)), ('hshin_l', 'hleg_l', P(-0.17, -0.42, 0.28)),
+])
+
+
 def grunt():
-    m = Model('grunt')
-    leg = dict(swing=-0.75, pivot=0.52, mirror=True)
-    m.limb(P(0.14, 0.02, 0.54), P(0.15, 0.0, 0.12), (0.2, 0.22), (0.15, 0.17), col=BODY_D, tint=1, bevel=0.03, **leg)
-    m.box(P(0.15, 0.07, 0.06), (0.2, 0.34, 0.12), taper=(0.85, 0.8), col=BODY_DD, tint=1, bevel=0.03, **leg)
+    m = Model('grunt', rig=RIG_GRUNT)
+    th = dict(bone='thigh_r', mirror=True)
+    sh = dict(bone='shin_r', mirror=True)
+    m.limb(P(0.14, 0.02, 0.54), P(0.145, 0.02, 0.32), (0.2, 0.22), (0.18, 0.2), col=BODY_D, tint=1, bevel=0.03, **th)
+    m.limb(P(0.145, 0.02, 0.34), P(0.15, 0.0, 0.12), (0.18, 0.2), (0.15, 0.17), col=BODY_D, tint=1, bevel=0.03, **sh)
+    m.box(P(0.15, 0.07, 0.06), (0.2, 0.34, 0.12), taper=(0.85, 0.8), col=BODY_DD, tint=1, bevel=0.03, **sh)
     m.box(P(0, 0.02, 0.55), (0.4, 0.3, 0.12), col=PLATE_D, bevel=0.03)  # belt
     m.box(P(0, 0.1, 0.8), (0.38, 0.3, 0.5), rot=(17, 0, 0), taper=(1.5, 1.2), col=BODY, tint=1, bevel=0.05)  # hunched torso
-    m.box(P(0, 0.14, 1.03), (0.74, 0.34, 0.22), taper=(0.8, 0.8), col=BODY_L, tint=1, bevel=0.06)  # shoulder yoke
+    m.box(P(0, 0.14, 1.03), (0.74, 0.34, 0.22), taper=(0.8, 0.8), col=BODY_L, tint=1, bevel=0.06, bone='chest')  # shoulder yoke
     m.ball(P(-0.36, 0.12, 1.1), (0.19, 0.2, 0.14), sub=1, smooth=0, col=PLATE_S)  # one scavenged pauldron
     light(m, P(0, 0.275, 0.84), 0.075, axis='f', detail=True)
     for i in range(3):  # spines down the back: the grunt's mark when seen from above
@@ -71,71 +111,77 @@ def grunt():
         m.spike(P(sx * 0.08, 0.51, 1.01), P(sx * 0.085, 0.53, 1.12), 0.05, seg=4, col=BONE, detail=True)
     m.box(P(0, 0.43, 1.25), (0.32, 0.14, 0.07), rot=(14, 0, 0), col=BODY_D, tint=1, bevel=0.02, detail=True)  # brow
     eyes(m, 0.085, 0.5, 1.17, (0.07, 0.035, 0.05))
-    arm = dict(swing=0.32, pivot=0.98, mirror=True)
-    m.limb(P(0.33, 0.12, 0.99), P(0.34, 0.36, 0.86), (0.16, 0.16), (0.14, 0.14), col=BODY, tint=1, bevel=0.03, **arm)
-    m.limb(P(0.34, 0.36, 0.86), P(0.3, 0.62, 0.93), (0.15, 0.15), (0.13, 0.13), col=SKIN_T, tint=1, bevel=0.03, **arm)
-    m.box(P(0.3, 0.68, 0.93), (0.17, 0.16, 0.14), col=BODY_D, tint=1, bevel=0.035, **arm)
+    ua = dict(bone='arm_r', mirror=True)
+    fa = dict(bone='fore_r', mirror=True)
+    m.limb(P(0.33, 0.12, 0.99), P(0.34, 0.36, 0.86), (0.16, 0.16), (0.14, 0.14), col=BODY, tint=1, bevel=0.03, **ua)
+    m.limb(P(0.34, 0.36, 0.86), P(0.3, 0.62, 0.93), (0.15, 0.15), (0.13, 0.13), col=SKIN_T, tint=1, bevel=0.03, **fa)
+    m.box(P(0.3, 0.68, 0.93), (0.17, 0.16, 0.14), col=BODY_D, tint=1, bevel=0.035, **fa)
     for dx in (-0.055, 0, 0.055):
-        m.spike(P(0.3 + dx, 0.73, 0.93), P(0.3 + dx * 1.7, 0.9, 0.87), 0.05, seg=4, col=BONE, detail=True, **arm)
+        m.spike(P(0.3 + dx, 0.73, 0.93), P(0.3 + dx * 1.7, 0.9, 0.87), 0.05, seg=4, col=BONE, detail=True, **fa)
     return m
 
 
 def runner():
     """A plated hound. Diagonal legs move together, each about its own hip."""
-    m = Model('runner')
-    fl = dict(swing=1.0, pivot=0.46, pivot_f=0.3, mirror=True)
-    hl = dict(swing=-1.0, pivot=0.5, pivot_f=-0.28, mirror=True)
+    m = Model('runner', rig=RIG_HOUND)
+    fu = dict(bone='fleg_r', mirror=True)
+    fs = dict(bone='fshin_r', mirror=True)
+    hu = dict(bone='hleg_r', mirror=True)
+    hs = dict(bone='hshin_r', mirror=True)
     # Front legs.
-    m.limb(P(0.15, 0.3, 0.48), P(0.16, 0.37, 0.23), (0.13, 0.17), (0.1, 0.12), col=BODY_D, tint=1, bevel=0.02, **fl)
-    m.limb(P(0.16, 0.37, 0.25), P(0.16, 0.34, 0.07), (0.1, 0.12), (0.085, 0.1), col=BODY_D, tint=1, bevel=0.02, **fl)
-    m.box(P(0.16, 0.4, 0.045), (0.14, 0.22, 0.09), col=BODY_DD, tint=1, bevel=0.025, **fl)
+    m.limb(P(0.15, 0.3, 0.48), P(0.16, 0.37, 0.23), (0.13, 0.17), (0.1, 0.12), col=BODY_D, tint=1, bevel=0.02, **fu)
+    m.limb(P(0.16, 0.37, 0.25), P(0.16, 0.34, 0.07), (0.1, 0.12), (0.085, 0.1), col=BODY_D, tint=1, bevel=0.02, **fs)
+    m.box(P(0.16, 0.4, 0.045), (0.14, 0.22, 0.09), col=BODY_DD, tint=1, bevel=0.025, **fs)
     # Hind legs, with a heavy haunch.
-    m.limb(P(0.15, -0.26, 0.54), P(0.17, -0.42, 0.28), (0.15, 0.24), (0.11, 0.14), col=BODY, tint=1, bevel=0.03, **hl)
-    m.limb(P(0.17, -0.42, 0.29), P(0.17, -0.31, 0.07), (0.1, 0.12), (0.085, 0.1), col=BODY_D, tint=1, bevel=0.02, **hl)
-    m.box(P(0.17, -0.25, 0.045), (0.14, 0.22, 0.09), col=BODY_DD, tint=1, bevel=0.025, **hl)
-    for leg, f in ((fl, 0.5), (hl, -0.15)):
+    m.limb(P(0.15, -0.26, 0.54), P(0.17, -0.42, 0.28), (0.15, 0.24), (0.11, 0.14), col=BODY, tint=1, bevel=0.03, **hu)
+    m.limb(P(0.17, -0.42, 0.29), P(0.17, -0.31, 0.07), (0.1, 0.12), (0.085, 0.1), col=BODY_D, tint=1, bevel=0.02, **hs)
+    m.box(P(0.17, -0.25, 0.045), (0.14, 0.22, 0.09), col=BODY_DD, tint=1, bevel=0.025, **hs)
+    for leg, f in ((fs, 0.5), (hs, -0.15)):
         for dx in (-0.045, 0, 0.045):
             m.spike(P(0.16 + dx, f, 0.05), P(0.16 + dx * 1.4, f + 0.12, 0.015), 0.045, seg=4, col=BONE, detail=True, **leg)
     # Body.
-    m.box(P(0, 0.2, 0.58), (0.34, 0.48, 0.36), taper=(0.85, 1), col=BODY, tint=1, bevel=0.05)  # chest
-    m.box(P(0, -0.2, 0.56), (0.28, 0.46, 0.28), rot=(-6, 0, 0), taper=(0.9, 1), col=BODY, tint=1, bevel=0.05)  # loin
-    m.box(P(0, 0.0, 0.44), (0.22, 0.6, 0.12), col=BODY_D, tint=1, bevel=0.025)  # belly
+    m.box(P(0, 0.2, 0.58), (0.34, 0.48, 0.36), taper=(0.85, 1), col=BODY, tint=1, bevel=0.05, bone='chest')  # chest
+    m.box(P(0, -0.2, 0.56), (0.28, 0.46, 0.28), rot=(-6, 0, 0), taper=(0.9, 1), col=BODY, tint=1, bevel=0.05, bone='root')  # loin
+    m.box(P(0, 0.0, 0.44), (0.22, 0.6, 0.12), col=BODY_D, tint=1, bevel=0.025, bone='root')  # belly
     for sx in (-1, 1):  # hexagonal plates on shoulder and haunch, each with a lit core
-        m.lathe([(0.17, 0.0), (0.15, 0.05 * sx)], P(sx * 0.17, 0.22, 0.62), axis='x', seg=6, exact=True, col=BODY_L, tint=1)
-        light(m, P(sx * 0.222, 0.22, 0.62), 0.1, axis='x', flip=sx < 0)
-        m.lathe([(0.13, 0.0), (0.115, 0.04 * sx)], P(sx * 0.145, -0.24, 0.6), axis='x', seg=6, exact=True, col=BODY_L, tint=1)
-        light(m, P(sx * 0.187, -0.24, 0.6), 0.075, axis='x', flip=sx < 0, detail=True)
+        m.lathe([(0.17, 0.0), (0.15, 0.05 * sx)], P(sx * 0.17, 0.22, 0.62), axis='x', seg=6, exact=True, col=BODY_L, tint=1, bone='chest')
+        light(m, P(sx * 0.222, 0.22, 0.62), 0.1, axis='x', flip=sx < 0, bone='chest')
+        m.lathe([(0.13, 0.0), (0.115, 0.04 * sx)], P(sx * 0.145, -0.24, 0.6), axis='x', seg=6, exact=True, col=BODY_L, tint=1, bone='root')
+        light(m, P(sx * 0.187, -0.24, 0.6), 0.075, axis='x', flip=sx < 0, detail=True, bone='root')
     # Neck and head.
-    m.limb(P(0, 0.36, 0.64), P(0, 0.56, 0.74), (0.2, 0.22), (0.17, 0.19), col=BODY, tint=1, bevel=0.03)
-    m.box(P(0, 0.62, 0.75), (0.25, 0.27, 0.22), taper=(0.8, 0.9), col=SKIN_T, tint=1, bevel=0.045)  # skull
-    m.box(P(0, 0.81, 0.72), (0.15, 0.22, 0.1), taper=(0.8, 1), col=BODY_D, tint=1, bevel=0.025)  # muzzle
-    m.box(P(0, 0.78, 0.63), (0.13, 0.22, 0.05), rot=(-16, 0, 0), col=BODY_D, tint=1, bevel=0.015)  # open jaw
-    m.box(P(0, 0.77, 0.665), (0.1, 0.17, 0.035), col=MOUTH, bevel=0)
+    m.limb(P(0, 0.36, 0.64), P(0, 0.56, 0.74), (0.2, 0.22), (0.17, 0.19), col=BODY, tint=1, bevel=0.03, bone='head')
+    m.box(P(0, 0.62, 0.75), (0.25, 0.27, 0.22), taper=(0.8, 0.9), col=SKIN_T, tint=1, bevel=0.045, bone='head')  # skull
+    m.box(P(0, 0.81, 0.72), (0.15, 0.22, 0.1), taper=(0.8, 1), col=BODY_D, tint=1, bevel=0.025, bone='head')  # muzzle
+    m.box(P(0, 0.78, 0.63), (0.13, 0.22, 0.05), rot=(-16, 0, 0), col=BODY_D, tint=1, bevel=0.015, bone='jaw')  # open jaw
+    m.box(P(0, 0.77, 0.665), (0.1, 0.17, 0.035), col=MOUTH, bevel=0, bone='head')
     for sx in (-1, 1):
-        m.spike(P(sx * 0.05, 0.9, 0.69), P(sx * 0.05, 0.91, 0.6), 0.04, seg=4, col=BONE, detail=True)  # fangs
-        m.spike(P(sx * 0.045, 0.85, 0.61), P(sx * 0.045, 0.87, 0.68), 0.035, seg=4, col=BONE, detail=True)
-        m.spike(P(sx * 0.09, 0.56, 0.84), P(sx * 0.15, 0.38, 1.02), 0.09, seg=4, col=BONE)  # swept horns
-    m.box(P(0.105, 0.72, 0.79), (0.03, 0.07, 0.045), col=EYE, glow=1, bevel=0, mirror=True)
+        m.spike(P(sx * 0.05, 0.9, 0.69), P(sx * 0.05, 0.91, 0.6), 0.04, seg=4, col=BONE, detail=True, bone='head')  # fangs
+        m.spike(P(sx * 0.045, 0.85, 0.61), P(sx * 0.045, 0.87, 0.68), 0.035, seg=4, col=BONE, detail=True, bone='jaw')
+        m.spike(P(sx * 0.09, 0.56, 0.84), P(sx * 0.15, 0.38, 1.02), 0.09, seg=4, col=BONE, bone='head')  # swept horns
+    m.box(P(0.105, 0.72, 0.79), (0.03, 0.07, 0.045), col=EYE, glow=1, bevel=0, mirror=True, bone='head')
     for i in range(4):  # mane of bone along the spine
-        m.spike(P(0, 0.34 - i * 0.18, 0.74 - i * 0.03), P(0, 0.18 - i * 0.18, 1.02 - i * 0.08), 0.11 - i * 0.012, seg=4, col=BONE, detail=i == 2)
-    m.limb(P(0, -0.42, 0.64), P(0, -0.62, 0.8), (0.09, 0.09), (0.06, 0.06), col=BODY_D, tint=1, bevel=0.015)  # tail
-    m.spike(P(0, -0.6, 0.78), P(0, -0.74, 1.02), 0.09, seg=4, col=BONE)
+        m.spike(P(0, 0.34 - i * 0.18, 0.74 - i * 0.03), P(0, 0.18 - i * 0.18, 1.02 - i * 0.08), 0.11 - i * 0.012, seg=4, col=BONE, detail=i == 2, bone='chest' if i < 2 else 'root')
+    m.limb(P(0, -0.42, 0.64), P(0, -0.62, 0.8), (0.09, 0.09), (0.06, 0.06), col=BODY_D, tint=1, bevel=0.015, bone='tail')  # tail
+    m.spike(P(0, -0.6, 0.78), P(0, -0.74, 1.02), 0.09, seg=4, col=BONE, bone='tail')
     return m
 
 
 def shield():
-    m = Model('shield')
+    m = Model('shield', rig=RIG_SHIELD)
     leather = (0.4, 0.27, 0.19)
     violet = (0.93, 0.87, 1.0)
-    leg = dict(swing=-0.55, pivot=0.52, mirror=True)
-    m.limb(P(0.14, 0, 0.54), P(0.14, 0, 0.3), (0.2, 0.22), (0.17, 0.19), col=BODY_D, tint=1, bevel=0.03, **leg)
-    m.limb(P(0.14, 0.01, 0.33), P(0.14, 0, 0.1), (0.2, 0.22), (0.17, 0.2), col=PLATE_S, bevel=0.03, **leg)  # greave
-    m.lathe([(0.09, 0.0), (0.075, 0.045)], P(0.14, 0.11, 0.35), axis='f', seg=6, exact=True, col=BODY_L, tint=1, **leg)  # knee
-    m.box(P(0.14, 0.05, 0.065), (0.21, 0.34, 0.13), taper=(0.85, 0.8), col=PLATE_D, bevel=0.035, **leg)
+    th = dict(bone='thigh_r', mirror=True)
+    sh = dict(bone='shin_r', mirror=True)
+    spear = dict(bone='arm_r')
+    shd = dict(bone='arm_l')
+    m.limb(P(0.14, 0, 0.54), P(0.14, 0, 0.3), (0.2, 0.22), (0.17, 0.19), col=BODY_D, tint=1, bevel=0.03, **th)
+    m.limb(P(0.14, 0.01, 0.33), P(0.14, 0, 0.1), (0.2, 0.22), (0.17, 0.2), col=PLATE_S, bevel=0.03, **sh)  # greave
+    m.lathe([(0.09, 0.0), (0.075, 0.045)], P(0.14, 0.11, 0.35), axis='f', seg=6, exact=True, col=BODY_L, tint=1, **sh)  # knee
+    m.box(P(0.14, 0.05, 0.065), (0.21, 0.34, 0.13), taper=(0.85, 0.8), col=PLATE_D, bevel=0.035, **sh)
     m.box(P(0, 0, 0.56), (0.42, 0.3, 0.1), col=leather, bevel=0.025)
     m.box(P(0.15, 0.15, 0.51), (0.11, 0.07, 0.12), col=(0.5, 0.35, 0.25), bevel=0.02, mirror=True, detail=True)  # pouches
     m.box(P(0, 0, 0.82), (0.4, 0.3, 0.46), taper=(1.35, 1.1), col=BODY, tint=1, bevel=0.05)  # cuirass
-    m.box(P(0, 0.02, 1.04), (0.5, 0.32, 0.09), col=PLATE_S, bevel=0.03)  # gorget
+    m.box(P(0, 0.02, 1.04), (0.5, 0.32, 0.09), col=PLATE_S, bevel=0.03, bone='chest')  # gorget
     light(m, P(0, 0.165, 0.86), 0.09, axis='f', col=violet, rim=PLATE_S)
     m.ball(P(0.33, 0, 1.02), (0.18, 0.18, 0.11), sub=1, smooth=0, col=PLATE_S, mirror=True)
     m.ball(P(0.31, 0, 1.1), (0.16, 0.17, 0.12), sub=1, smooth=0, col=BODY_L, tint=1, mirror=True)  # pauldrons
@@ -145,30 +191,30 @@ def shield():
     m.prism([(0.16, 1.39), (0.1, 1.6), (-0.08, 1.7), (-0.27, 1.6), (-0.22, 1.37)], 0.085, col=BODY_L, tint=1, bevel=0.02)  # plume
     # Kite shield: steel rim, coloured face, three lit chevrons.
     sx, f0 = -0.09, 0.42
-    m.prism([(sx - 0.37, 1.22), (sx + 0.37, 1.22), (sx + 0.41, 0.64), (sx, 0.08), (sx - 0.41, 0.64)], 0.08, at=f0, plane='xu', col=PLATE_S, bevel=0.03)
-    m.prism([(sx - 0.3, 1.15), (sx + 0.3, 1.15), (sx + 0.33, 0.66), (sx, 0.2), (sx - 0.33, 0.66)], 0.04, at=f0 + 0.05, plane='xu', col=BODY, tint=1, bevel=0.015)
+    m.prism([(sx - 0.37, 1.22), (sx + 0.37, 1.22), (sx + 0.41, 0.64), (sx, 0.08), (sx - 0.41, 0.64)], 0.08, at=f0, plane='xu', col=PLATE_S, bevel=0.03, **shd)
+    m.prism([(sx - 0.3, 1.15), (sx + 0.3, 1.15), (sx + 0.33, 0.66), (sx, 0.2), (sx - 0.33, 0.66)], 0.04, at=f0 + 0.05, plane='xu', col=BODY, tint=1, bevel=0.015, **shd)
     for i, u in enumerate((0.9, 0.72, 0.54)):
         w = 0.21 - 0.025 * i
-        m.prism([(sx - w, u + 0.1), (sx, u), (sx + w, u + 0.1), (sx + w, u + 0.18), (sx, u + 0.08), (sx - w, u + 0.18)], 0.02, at=f0 + 0.08, plane='xu', col=violet, glow=0.95, bevel=0)
+        m.prism([(sx - w, u + 0.1), (sx, u), (sx + w, u + 0.1), (sx + w, u + 0.18), (sx, u + 0.08), (sx - w, u + 0.18)], 0.02, at=f0 + 0.08, plane='xu', col=violet, glow=0.95, bevel=0, **shd)
     for x, u in ((sx - 0.31, 1.17), (sx + 0.31, 1.17), (sx, 0.17)):
-        m.ball(P(x, f0 + 0.05, u), 0.03, sub=1, col=PLATE_D, detail=True)  # rivets
+        m.ball(P(x, f0 + 0.05, u), 0.03, sub=1, col=PLATE_D, detail=True, **shd)  # rivets
     # Spear with a crystal blade.
-    m.limb(P(0.38, 0.12, 0.08), P(0.38, 0.22, 1.5), 0.05, round=True, seg=6, col=(0.24, 0.2, 0.27))
-    m.lathe([(0.065, 0.0), (0.08, 0.035), (0.065, 0.07)], P(0.38, 0.218, 1.44), seg=6, col=PLATE_S)
-    m.lathe([(0.0, 0.0), (0.1, 0.13), (0.0, 0.52)], P(0.38, 0.222, 1.5), seg=4, exact=True, scale=(1, 0.55), col=violet, glow=0.85)
-    m.spike(P(0.38, 0.122, 0.1), P(0.38, 0.115, -0.0), 0.07, seg=4, col=PLATE_S, detail=True)
-    m.limb(P(0.32, 0, 1.0), P(0.38, 0.17, 0.86), (0.13, 0.13), col=BODY_D, tint=1, bevel=0.025)
-    m.box(P(0.38, 0.18, 0.83), (0.15, 0.15, 0.14), col=BODY_L, tint=1, bevel=0.035)  # gauntlet
+    m.limb(P(0.38, 0.12, 0.08), P(0.38, 0.22, 1.5), 0.05, round=True, seg=6, col=(0.24, 0.2, 0.27), **spear)
+    m.lathe([(0.065, 0.0), (0.08, 0.035), (0.065, 0.07)], P(0.38, 0.218, 1.44), seg=6, col=PLATE_S, **spear)
+    m.lathe([(0.0, 0.0), (0.1, 0.13), (0.0, 0.52)], P(0.38, 0.222, 1.5), seg=4, exact=True, scale=(1, 0.55), col=violet, glow=0.85, **spear)
+    m.spike(P(0.38, 0.122, 0.1), P(0.38, 0.115, -0.0), 0.07, seg=4, col=PLATE_S, detail=True, **spear)
+    m.limb(P(0.32, 0, 1.0), P(0.38, 0.17, 0.86), (0.13, 0.13), col=BODY_D, tint=1, bevel=0.025, **spear)
+    m.box(P(0.38, 0.18, 0.83), (0.15, 0.15, 0.14), col=BODY_L, tint=1, bevel=0.035, **spear)  # gauntlet
     return m
 
 
 def bomber():
     """A walking reactor crate: armoured hull, lit core, a crystal fuel cell on its flank."""
-    m = Model('bomber')
+    m = Model('bomber', rig=RIG_BOMBER, bone='chest')
     cream = (0.94, 0.94, 0.9)
     panel = (0.8, 0.8, 0.79)
     c = 0.66  # height of the hull's centre
-    leg = dict(swing=-1.0, pivot=0.3, mirror=True)
+    leg = dict(bone='thigh_r', mirror=True)
     m.limb(P(0.18, 0, 0.34), P(0.18, 0.01, 0.1), (0.14, 0.16), (0.12, 0.14), col=PLATE_D, bevel=0.02, **leg)
     m.box(P(0.18, 0.05, 0.05), (0.18, 0.28, 0.1), taper=(0.85, 0.8), col=PLATE_S, bevel=0.03, **leg)
     m.box(P(0, 0, 0.31), (0.6, 0.6, 0.08), col=PLATE_D, bevel=0.02)
@@ -192,7 +238,7 @@ def bomber():
     m.lathe([(0.19, 0.0), (0.17, 0.07), (0.09, 0.12), (0, 0.13)], P(0, 0, c + 0.42), seg=8, col=W, tint=1, glow=0.35, smooth=180)
     m.limb(P(0, 0, c + 0.54), P(0, 0, c + 0.66), 0.035, round=True, seg=5, col=PLATE_D)
     m.ball(P(0, 0, c + 0.69), 0.065, sub=1, col=(1, 0.9, 0.4), glow=1)
-    m.lathe([(0.3, -0.014), (0.33, 0.0), (0.3, 0.014)], P(0, 0, c + 0.6), seg=12, cap=False, col=(1, 0.85, 0.3), glow=1)
+    m.lathe([(0.3, -0.014), (0.33, 0.0), (0.3, 0.014)], P(0, 0, c + 0.6), seg=12, cap=False, col=(1, 0.85, 0.3), glow=1, bone='halo')
     # Fuel cell.
     m.lathe([(0.0, 0.0), (0.105, 0.1), (0.115, 0.42), (0.0, 0.54)], P(0.55, 0.0, 0.5), seg=6, exact=True, col=ACID, glow=0.8)
     for u in (0.66, 0.86):
@@ -205,16 +251,17 @@ def bomber():
 
 def heavy(kind):
     """Armoured golem: brute, giant and boss share one frame."""
-    m = Model(kind)
+    m = Model(kind, rig=RIG_HEAVY)
     big = kind != 'brute'
     hot = (1.0, 0.95, 0.85)
-    leg = dict(swing=-0.45, pivot=0.5, mirror=True)
-    m.limb(P(0.22, 0, 0.52), P(0.24, 0, 0.3), (0.3, 0.34), (0.27, 0.31), col=BODY_D, tint=1, bevel=0.035, **leg)
-    m.limb(P(0.24, 0.0, 0.34), P(0.25, 0, 0.13), (0.33, 0.37), (0.3, 0.34), col=BODY, tint=1, bevel=0.045, **leg)  # shin plate
-    m.box(P(0.25, 0.06, 0.085), (0.35, 0.5, 0.17), taper=(0.85, 0.8), col=PLATE_S, bevel=0.05, **leg)  # boot
+    th = dict(bone='thigh_r', mirror=True)
+    sh = dict(bone='shin_r', mirror=True)
+    m.limb(P(0.22, 0, 0.52), P(0.24, 0, 0.3), (0.3, 0.34), (0.27, 0.31), col=BODY_D, tint=1, bevel=0.035, **th)
+    m.limb(P(0.24, 0.0, 0.34), P(0.25, 0, 0.13), (0.33, 0.37), (0.3, 0.34), col=BODY, tint=1, bevel=0.045, **sh)  # shin plate
+    m.box(P(0.25, 0.06, 0.085), (0.35, 0.5, 0.17), taper=(0.85, 0.8), col=PLATE_S, bevel=0.05, **sh)  # boot
     if big:
-        m.box(P(0.245, 0, 0.36), (0.37, 0.41, 0.08), col=PLATE_S, bevel=0.025, **leg)
-        m.prism([(0.245 - 0.07, 0.3), (0.245 + 0.07, 0.3), (0.245, 0.2)], 0.02, at=0.19, plane='xu', col=AMBER, glow=1, bevel=0, **leg)
+        m.box(P(0.245, 0, 0.36), (0.37, 0.41, 0.08), col=PLATE_S, bevel=0.025, **sh)
+        m.prism([(0.245 - 0.07, 0.3), (0.245 + 0.07, 0.3), (0.245, 0.2)], 0.02, at=0.19, plane='xu', col=AMBER, glow=1, bevel=0, **sh)
     m.box(P(0, 0, 0.54), (0.72, 0.5, 0.16), col=PLATE_D, bevel=0.04)  # belt
     m.box(P(0, 0.255, 0.52), (0.22, 0.04, 0.17), taper=(0.7, 1), col=PLATE_S, bevel=0.02)  # buckle
     m.box(P(0, 0.02, 0.68), (0.5, 0.4, 0.2), col=BODY_DD, tint=1, bevel=0.03)  # waist
@@ -233,36 +280,37 @@ def heavy(kind):
     R = (0.36, 0.35, 0.29) if big else (0.3, 0.3, 0.24)
     m.ball(P(0.63, 0.02, 1.22), R, sub=1, smooth=0, col=PLATE_S, mirror=True)
     m.ball(P(0.6, 0.02, 1.33), (R[0] * 0.72, R[1] * 0.74, R[2] * 0.7), sub=1, smooth=0, col=BODY_L, tint=1, mirror=True)
-    arm = dict(swing=0.5, pivot=1.12, mirror=True)
-    m.limb(P(0.66, 0.03, 1.08), P(0.68, 0.05, 0.8), (0.24, 0.28), (0.22, 0.26), col=BODY_D, tint=1, bevel=0.03, **arm)
-    m.limb(P(0.68, 0.05, 0.82), P(0.68, 0.12, 0.5), (0.31, 0.35), (0.28, 0.32), col=BODY, tint=1, bevel=0.045, **arm)  # forearm
-    m.box(P(0.68, 0.1, 0.62), (0.37, 0.41, 0.09), col=PLATE_S, bevel=0.025, **arm)
-    m.box(P(0.68, 0.15, 0.36), (0.39, 0.43, 0.32), col=BODY_D, tint=1, bevel=0.07, **arm)  # fist
-    m.box(P(0.68, 0.37, 0.38), (0.31, 0.05, 0.15), col=PLATE_S, bevel=0.02, **arm)
-    m.box(P(0.68, 0.4, 0.38), (0.17, 0.02, 0.05), col=AMBER, glow=1, bevel=0, detail=True, **arm)
+    ua = dict(bone='arm_r', mirror=True)
+    fa = dict(bone='fore_r', mirror=True)
+    m.limb(P(0.66, 0.03, 1.08), P(0.68, 0.05, 0.8), (0.24, 0.28), (0.22, 0.26), col=BODY_D, tint=1, bevel=0.03, **ua)
+    m.limb(P(0.68, 0.05, 0.82), P(0.68, 0.12, 0.5), (0.31, 0.35), (0.28, 0.32), col=BODY, tint=1, bevel=0.045, **fa)  # forearm
+    m.box(P(0.68, 0.1, 0.62), (0.37, 0.41, 0.09), col=PLATE_S, bevel=0.025, **fa)
+    m.box(P(0.68, 0.15, 0.36), (0.39, 0.43, 0.32), col=BODY_D, tint=1, bevel=0.07, **fa)  # fist
+    m.box(P(0.68, 0.37, 0.38), (0.31, 0.05, 0.15), col=PLATE_S, bevel=0.02, **fa)
+    m.box(P(0.68, 0.4, 0.38), (0.17, 0.02, 0.05), col=AMBER, glow=1, bevel=0, detail=True, **fa)
     if big:
         for sx in (-1, 1):
             light(m, P(sx * 0.63, 0.345, 1.22), 0.13, axis='f')
             light(m, (sx * 0.985, 0, 1.22), 0.12, axis='x', flip=sx < 0)
-        m.box(P(0.68, 0.05, 0.95), (0.3, 0.33, 0.07), col=PLATE_S, bevel=0.02, **arm)
+        m.box(P(0.68, 0.05, 0.95), (0.3, 0.33, 0.07), col=PLATE_S, bevel=0.02, **ua)
         for i in range(3):
             m.spike(P(0.46 + i * 0.15, 0.0, 1.42 - i * 0.03), P(0.5 + i * 0.22, -0.02, 1.8 - i * 0.12), 0.13, seg=5, col=BONE, mirror=True)
             m.spike(P(0, -0.26, 1.3 - i * 0.2), P(0, -0.6, 1.44 - i * 0.2), 0.13, seg=5, col=BONE)
     if kind == 'boss':
-        m.limb(P(0.15, 0.18, 1.48), P(0.31, 0.18, 1.64), 0.12, 0.1, round=True, seg=6, col=BONE, mirror=True)
-        m.spike(P(0.3, 0.18, 1.61), P(0.34, 0.26, 1.94), 0.1, seg=6, col=BONE, mirror=True)  # horns
-        m.lathe([(0.16, 0), (0.18, 0.07)], P(0, 0.19, 1.5), seg=8, cap=False, col=GOLD, glow=0.9)  # burning crown
+        m.limb(P(0.15, 0.18, 1.48), P(0.31, 0.18, 1.64), 0.12, 0.1, round=True, seg=6, col=BONE, mirror=True, bone='head')
+        m.spike(P(0.3, 0.18, 1.61), P(0.34, 0.26, 1.94), 0.1, seg=6, col=BONE, mirror=True, bone='head')  # horns
+        m.lathe([(0.16, 0), (0.18, 0.07)], P(0, 0.19, 1.5), seg=8, cap=False, col=GOLD, glow=0.9, bone='head')  # burning crown
         for i in range(4):
             a = i * math.pi / 2 + math.pi / 4
-            m.spike(P(math.cos(a) * 0.17, 0.19 + math.sin(a) * 0.17, 1.54), P(math.cos(a) * 0.2, 0.19 + math.sin(a) * 0.2, 1.7), 0.065, seg=4, col=GOLD, glow=0.9)
+            m.spike(P(math.cos(a) * 0.17, 0.19 + math.sin(a) * 0.17, 1.54), P(math.cos(a) * 0.2, 0.19 + math.sin(a) * 0.2, 1.7), 0.065, seg=4, col=GOLD, glow=0.9, bone='head')
         m.ball(P(0, 0.36, 1.0), (0.17, 0.08, 0.17), col=(1, 0.55, 0.15), glow=1)  # chest core
         m.prism([(-0.4, 1.38), (0.4, 1.38), (0.54, 0.3), (0.27, 0.16), (0, 0.32), (-0.27, 0.16), (-0.54, 0.3)], 0.05, at=-0.36, plane='xu',
                 col=(0.32, 0.05, 0.1), bevel=0, rot=(-9, 0, 0), rot_at=P(0, -0.36, 1.38))  # cape
-        sh = dict(swing=-0.2, pivot=1.12)
-        m.prism([(-0.98, 1.16), (-0.3, 1.16), (-0.24, 0.52), (-0.64, 0.1), (-1.04, 0.52)], 0.09, at=0.52, plane='xu', col=PLATE_S, bevel=0.03, **sh)
-        m.prism([(-0.9, 1.09), (-0.38, 1.09), (-0.33, 0.55), (-0.64, 0.22), (-0.95, 0.55)], 0.04, at=0.58, plane='xu', col=BODY, tint=1, bevel=0.015, **sh)
-        m.prism([(-0.64, 0.96), (-0.46, 0.74), (-0.64, 0.5), (-0.82, 0.74)], 0.03, at=0.61, plane='xu', col=GOLD, glow=0.9, bevel=0, **sh)  # emblem
-        mc = dict(swing=0.5, pivot=1.12)
+        shd = dict(bone='fore_l')
+        m.prism([(-0.98, 1.16), (-0.3, 1.16), (-0.24, 0.52), (-0.64, 0.1), (-1.04, 0.52)], 0.09, at=0.52, plane='xu', col=PLATE_S, bevel=0.03, **shd)
+        m.prism([(-0.9, 1.09), (-0.38, 1.09), (-0.33, 0.55), (-0.64, 0.22), (-0.95, 0.55)], 0.04, at=0.58, plane='xu', col=BODY, tint=1, bevel=0.015, **shd)
+        m.prism([(-0.64, 0.96), (-0.46, 0.74), (-0.64, 0.5), (-0.82, 0.74)], 0.03, at=0.61, plane='xu', col=GOLD, glow=0.9, bevel=0, **shd)  # emblem
+        mc = dict(bone='fore_r')
         m.limb(P(0.68, 0.2, 0.42), P(0.68, 0.92, 0.5), 0.085, round=True, seg=6, col=(0.24, 0.2, 0.27), **mc)
         m.ball(P(0.68, 1.0, 0.51), 0.22, sub=1, smooth=0, col=PLATE_S, **mc)
         for dx, df, du in ((1, 0, 0), (-1, 0, 0), (0, 0, 1), (0, 0, -1), (0, 1, 0)):
@@ -272,10 +320,13 @@ def heavy(kind):
 
 def spitter():
     """An artillery creature: it carries acid crystals on a steel rack and lobs their charge."""
-    m = Model('spitter')
-    leg = dict(swing=-0.6, pivot=0.47, mirror=True)
-    m.limb(P(0.17, -0.02, 0.5), P(0.2, 0.0, 0.1), (0.15, 0.17), (0.1, 0.12), col=BODY_D, tint=1, bevel=0.025, **leg)
-    m.box(P(0.2, 0.06, 0.05), (0.17, 0.32, 0.1), taper=(0.85, 0.8), col=BODY_DD, tint=1, bevel=0.025, **leg)
+    m = Model('spitter', rig=RIG_SPITTER)
+    th = dict(bone='thigh_r', mirror=True)
+    sh = dict(bone='shin_r', mirror=True)
+    hd = dict(bone='head')
+    m.limb(P(0.17, -0.02, 0.5), P(0.185, -0.01, 0.29), (0.15, 0.17), (0.13, 0.15), col=BODY_D, tint=1, bevel=0.025, **th)
+    m.limb(P(0.185, -0.01, 0.31), P(0.2, 0.0, 0.1), (0.13, 0.15), (0.1, 0.12), col=BODY_D, tint=1, bevel=0.025, **sh)
+    m.box(P(0.2, 0.06, 0.05), (0.17, 0.32, 0.1), taper=(0.85, 0.8), col=BODY_DD, tint=1, bevel=0.025, **sh)
     m.box(P(0, 0.06, 0.7), (0.4, 0.42, 0.42), rot=(24, 0, 0), taper=(1.2, 1.1), col=BODY, tint=1, bevel=0.06)
     m.box(P(0, -0.12, 0.9), (0.56, 0.34, 0.1), rot=(8, 0, 0), col=PLATE_D, bevel=0.03)  # rack
     m.lathe([(0.0, 0.0), (0.15, 0.12), (0.16, 0.44), (0.0, 0.62)], P(0, -0.14, 0.92), seg=6, exact=True, col=ACID, glow=0.8)
@@ -283,12 +334,12 @@ def spitter():
     for sx in (-1, 1):
         m.lathe([(0.0, 0.0), (0.1, 0.08), (0.11, 0.3), (0.0, 0.42)], P(sx * 0.23, -0.2, 0.9), seg=6, exact=True, col=ACID, glow=0.8)
         m.lathe([(0.125, 0.0), (0.125, 0.04)], P(sx * 0.23, -0.2, 1.02), seg=6, exact=True, col=PLATE_S, detail=True)
-    m.limb(P(0, 0.2, 0.86), P(0, 0.42, 1.18), (0.19, 0.19), (0.15, 0.15), col=SKIN_T, tint=1, bevel=0.03)  # neck
-    m.box(P(0, 0.46, 1.26), (0.3, 0.32, 0.25), taper=(0.8, 0.85), col=SKIN_T, tint=1, bevel=0.05)
-    m.lathe([(0.075, 0.0), (0.17, 0.18)], P(0, 0.58, 1.3), axis='f', seg=6, exact=True, cap=False, col=PLATE_S)  # mortar mouth
-    m.ball(P(0, 0.68, 1.3), (0.11, 0.06, 0.11), sub=1, col=(0.75, 1, 0.35), glow=1)
-    eyes(m, 0.125, 0.56, 1.38, (0.05, 0.05, 0.045), col=(0.8, 1, 0.4))
-    arm = dict(swing=0.4, pivot=0.82, mirror=True)
+    m.limb(P(0, 0.2, 0.86), P(0, 0.42, 1.18), (0.19, 0.19), (0.15, 0.15), col=SKIN_T, tint=1, bevel=0.03, **hd)  # neck
+    m.box(P(0, 0.46, 1.26), (0.3, 0.32, 0.25), taper=(0.8, 0.85), col=SKIN_T, tint=1, bevel=0.05, **hd)
+    m.lathe([(0.075, 0.0), (0.17, 0.18)], P(0, 0.58, 1.3), axis='f', seg=6, exact=True, cap=False, col=PLATE_S, **hd)  # mortar mouth
+    m.ball(P(0, 0.68, 1.3), (0.11, 0.06, 0.11), sub=1, col=(0.75, 1, 0.35), glow=1, **hd)
+    eyes(m, 0.125, 0.56, 1.38, (0.05, 0.05, 0.045), col=(0.8, 1, 0.4), **hd)
+    arm = dict(bone='arm_r', mirror=True)
     m.limb(P(0.22, 0.2, 0.82), P(0.27, 0.42, 0.6), (0.1, 0.1), (0.08, 0.08), col=BODY_D, tint=1, bevel=0.02, **arm)
     return m
 
@@ -311,6 +362,7 @@ BOOT = SUIT_D
 
 def _helmet(m, tier):
     R = 0.25
+    m.bone = 'head'  # everything below rides the head
     cu = 1.13
     m.lathe([(R * 0.9, -0.1), (R, 0.0), (R * 0.92, 0.1), (R * 0.7, 0.18), (R * 0.38, 0.235), (0, 0.25)], P(0, 0, cu), seg=12, scale=(1, 1.06),
             col=BODY, tint=1, smooth=180)
@@ -328,24 +380,26 @@ def _helmet(m, tier):
         m.lathe([(0.075, 0.0), (0.06, 0.04 * s)], (s * R * 0.97, 0, cu - 0.02), axis='x', seg=8, col=ARMOR)  # ear discs
     if tier >= 5:
         m.prism([(0.0, cu + 0.27), (0.07, cu + 0.44), (-0.08, cu + 0.56), (-0.2, cu + 0.36)], 0.06, col=BODY_L, tint=1, bevel=0.012)  # commander's fin
+    m.bone = None  # back to placing parts by position
 
 
 def trooper(tier):
     """Six ranks, from light rifleman to caped commander."""
-    m = Model('inf%d' % tier, face=-1)
+    m = Model('inf%d' % tier, face=-1, rig=RIG_TROOPER)
     wide = 1.0 + 0.06 * max(0, tier - 2)
     plate = ARMOR_L if tier == 2 else ARMOR
-    leg = dict(swing=-0.6, pivot=0.48, mirror=True)
-    m.limb(P(0.13, 0, 0.5), P(0.135, 0, 0.26), (0.2, 0.23), (0.18, 0.21), col=SUIT, bevel=0.03, **leg)
+    th = dict(bone='thigh_r', mirror=True)
+    sh = dict(bone='shin_r', mirror=True)
+    m.limb(P(0.13, 0, 0.5), P(0.135, 0, 0.26), (0.2, 0.23), (0.18, 0.21), col=SUIT, bevel=0.03, **th)
     if tier >= 1:
-        m.limb(P(0.135, 0.015, 0.3), P(0.135, 0.01, 0.12), (0.21, 0.24), (0.19, 0.22), col=ARMOR, bevel=0.03, **leg)  # greave
+        m.limb(P(0.135, 0.015, 0.3), P(0.135, 0.01, 0.12), (0.21, 0.24), (0.19, 0.22), col=ARMOR, bevel=0.03, **sh)  # greave
     else:
-        m.limb(P(0.135, 0, 0.28), P(0.135, 0, 0.12), (0.18, 0.21), (0.17, 0.2), col=SUIT, bevel=0.025, **leg)
+        m.limb(P(0.135, 0, 0.28), P(0.135, 0, 0.12), (0.18, 0.21), (0.17, 0.2), col=SUIT, bevel=0.025, **sh)
     if tier >= 3:
-        m.box(P(0.135, 0.12, 0.31), (0.17, 0.06, 0.13), col=ARMOR_L, bevel=0.02, **leg)  # knee
+        m.box(P(0.135, 0.12, 0.31), (0.17, 0.06, 0.13), col=ARMOR_L, bevel=0.02, **sh)  # knee
     if tier >= 4:
-        m.box(P(0.215, 0, 0.42), (0.07, 0.2, 0.17), col=ARMOR, bevel=0.02, **leg)  # thigh plate
-    m.box(P(0.135, 0.05, 0.07), (0.22, 0.34, 0.14), taper=(0.88, 0.82), col=SUIT_D, bevel=0.04, **leg)  # boot
+        m.box(P(0.215, 0, 0.42), (0.07, 0.2, 0.17), col=ARMOR, bevel=0.02, **th)  # thigh plate
+    m.box(P(0.135, 0.05, 0.07), (0.22, 0.34, 0.14), taper=(0.88, 0.82), col=SUIT_D, bevel=0.04, **sh)  # boot
     m.box(P(0, 0, 0.53), (0.4 * wide, 0.28, 0.12), col=SUIT_D, bevel=0.025)  # belt
     if tier >= 1:
         m.box(P(0.13, 0.15, 0.52), (0.1, 0.06, 0.1), col=ARMOR_L, bevel=0.018, mirror=True, detail=True)  # pouches
@@ -402,9 +456,9 @@ def trooper(tier):
     elif tier == 5:
         m.box(P(0, -0.19, 0.84), (0.3, 0.14, 0.22), col=ARMOR_D, bevel=0.03)
         m.prism([(-0.36, 1.0), (0.36, 1.0), (0.44, 0.2), (0.2, 0.12), (0, 0.22), (-0.2, 0.12), (-0.44, 0.2)], 0.035, at=-0.3, plane='xu',
-                col=BODY, tint=1, bevel=0, rot=(-9, 0, 0), rot_at=P(0, -0.3, 1.0))  # cape
+                col=BODY, tint=1, bevel=0, rot=(-9, 0, 0), rot_at=P(0, -0.3, 1.0), bone='chest')  # cape
         m.prism([(-0.44, 0.2), (-0.2, 0.12), (0, 0.22), (0.2, 0.12), (0.44, 0.2), (0.42, 0.29), (0.2, 0.21), (0, 0.31), (-0.2, 0.21), (-0.42, 0.29)], 0.04,
-                at=-0.3, plane='xu', col=BODY_L, tint=1, bevel=0, rot=(-9, 0, 0), rot_at=P(0, -0.3, 1.0), detail=True)  # cape trim
+                at=-0.3, plane='xu', col=BODY_L, tint=1, bevel=0, rot=(-9, 0, 0), rot_at=P(0, -0.3, 1.0), detail=True, bone='chest')  # cape trim
     else:
         m.box(P(0, -0.2, 0.78), (0.3 * wide, 0.17, 0.32), col=ARMOR_D, bevel=0.035)
         m.box(P(0, -0.2, 0.945), (0.16, 0.09, 0.02), **LIT_KW)
@@ -414,7 +468,7 @@ def trooper(tier):
         ax = 0.17 if tier != 5 else -0.2
         m.limb(P(ax, -0.24, 0.9), P(ax, -0.27, 1.52 if tier < 5 else 1.66), 0.035 if tier < 5 else 0.05, round=True, seg=5, col=ARMOR_D)  # antenna
         m.ball(P(ax, -0.27, 1.55 if tier < 5 else 1.69), 0.04, sub=1, col=LIT, tint=0.75, glow=1)
-    m.box(P(0, 0.02, 1.02), (0.2, 0.2, 0.1), col=SUIT_D, bevel=0.02)  # neck
+    m.box(P(0, 0.02, 1.02), (0.2, 0.2, 0.1), col=SUIT_D, bevel=0.02, bone='head')  # neck
     _helmet(m, tier)
     return m
 
@@ -436,7 +490,7 @@ GUN2 = (0.52, 0.54, 0.63)  # steel housing
 
 def weapon(kind, arms=True):
     """Arms and gun together, so each weapon gets the right grip."""
-    m = Model('w_' + kind, face=-1)
+    m = Model('w_' + kind, face=-1, rig=RIG_TROOPER, bone='gun')
     _arms = _arms_fn if arms else (lambda *a, **k: None)
     x = 0.17
     if kind == 'rifle':

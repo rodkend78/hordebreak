@@ -2,8 +2,8 @@
 import base64, json, math, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bpy
-import kit, models
-from kit import collect, pack, preview_object, setup_scene, add_camera, add_ground
+import kit, models, anim
+from kit import collect, pack, preview_object, setup_scene, add_camera, add_ground, bake_clip, pack_frame
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'out')
 os.makedirs(OUT, exist_ok=True)
@@ -45,17 +45,45 @@ for fn in (models.rocket, models.crate, models.jet):
 
 open(os.path.join(OUT, 'models.bin'), 'wb').write(bytes(blob))
 open(os.path.join(OUT, 'models.json'), 'w').write(json.dumps(manifest, separators=(',', ':')))
+
+# Animation: bake every clip of every rig. Row 0 is the rest pose, for anything unanimated.
+rigs = {}
+mesh_rig = {}
+for name, (m, _r, _m) in built.items():
+    if m.rig:
+        rigs[m.rig.name] = (m.rig, m.face)
+        mesh_rig[name] = m.rig.name
+        if name in models.LOD_ENEMIES:
+            mesh_rig[name + '_far'] = m.rig.name
+anim_index = {'bones': max(len(r.names) for r, _ in rigs.values()), 'rigs': {}, 'mesh': mesh_rig}
+anim_blob = bytearray()
+row = 1
+baked = {}
+for rname, (rig, face) in rigs.items():
+    entry = {'n': len(rig.names), 'clips': {}}
+    for cname, (fn, frames, loop) in anim.CLIPS[rname].items():
+        mats = bake_clip(rig, fn, frames, loop)
+        baked[(rname, cname)] = mats
+        entry['clips'][cname] = [row, frames, 1 if loop else 0]
+        for f in mats:
+            anim_blob += pack_frame(f, face)
+        row += frames
+    anim_index['rigs'][rname] = entry
+anim_index['rows'] = row
+open(os.path.join(OUT, 'anim.bin'), 'wb').write(bytes(anim_blob))
+open(os.path.join(OUT, 'anim.json'), 'w').write(json.dumps(anim_index, separators=(',', ':')))
+print('ANIM rows', row, 'bones', anim_index['bones'], 'bytes', len(anim_blob))
 for s in stats: print('%-12s verts %5d tris %5d bytes %6d' % s)
 print('TOTAL bytes', len(blob), 'base64', len(base64.b64encode(bytes(blob))))
 
 if MODE == 'export':
     sys.exit(0)
 
-def place(name, tint, loc, rot_z=0.0, scale=1.0):
+def place(name, tint, loc, rot_z=0.0, scale=1.0, pose=None):
     m, recs, meshes = built[name]
     # previews need fresh mesh datablocks per placement
     r2, me2 = collect(m, extra_occluders=[bodies[1]] if name.startswith('w_') else ())
-    return preview_object(m, r2, me2, tint=tint, loc=loc, rot_z=rot_z, scale=scale)
+    return preview_object(m, r2, me2, tint=tint, loc=loc, rot_z=rot_z, scale=scale, pose=pose)
 
 def sheet(path, items, eye, target, res=(1600, 800), lens=50, samples=20):
     sc = setup_scene(res=res, samples=samples)
@@ -121,3 +149,35 @@ if MODE in ('all', 'thumbs'):
         brecs, _ = collect(body)
         arms = models.weapon('rifle')
         thumb(iname, [(body, tint, ()), (arms, tint, [brecs])], (-2.4, -4.2, 2.6), (0.0, -0.1, 0.84), 1.66)
+
+if MODE in ('anim',):
+    # Filmstrips: each row is one figure seen from the side, walking (4 frames) then attacking (4 frames).
+    rows = [('grunt', 'grunt'), ('runner', 'hound'), ('shield', 'shield'), ('bomber', 'bomber'), ('spitter', 'spitter'), ('brute', 'heavy'), ('inf3', 'trooper')]
+    for part, sel in (('a', rows[:4]), ('b', rows[4:])):
+        sc = setup_scene(res=(1700, 240 * len(sel) + 60), samples=14)
+        add_ground(sc)
+        for r, (mesh, rig) in enumerate(sel):
+            tint = models.ENEMIES[mesh][1] if mesh in models.ENEMIES else models.INFANTRY[3][1]
+            clips = list(anim.CLIPS[rig].items())
+            col = 0
+            for cname, (fn, frames, loop) in clips:
+                mats = baked[(rig, cname)]
+                picks = [0, 4, 8, 12] if loop and frames == 16 else [int(round(k * (frames - 1) / 3)) for k in range(4)]
+                for fi in picks:
+                    loc = (col * 1.9 - 6.6, 0, -r * 2.1)
+                    # stand them on a vertical board facing sideways: x across, z down the sheet
+                    objs = place(mesh, tint, (loc[0], -r * 0.001, 0), rot_z=math.pi / 2, pose=mats[min(fi, frames - 1)])
+                    for ob in objs:
+                        ob.matrix_world = kit.Matrix.Translation((0, 0, loc[2])) @ ob.matrix_world
+                    if mesh == 'inf3':
+                        o2 = place('w_rifle', tint, (loc[0], 0, 0), rot_z=math.pi / 2, pose=mats[min(fi, frames - 1)])
+                        for ob in o2:
+                            ob.matrix_world = kit.Matrix.Translation((0, 0, loc[2])) @ ob.matrix_world
+                    col += 1
+        for ob in list(bpy.data.objects):
+            if ob.name == 'ground':
+                bpy.data.objects.remove(ob, do_unlink=True)
+        h = len(sel) * 2.1
+        add_camera(sc, (0.05, -30, -h / 2 + 1.75), (0.05, 0, -h / 2 + 1.75), ortho=15.2)
+        sc.render.filepath = os.path.join(OUT, 'anim_%s.png' % part)
+        bpy.ops.render.render(write_still=True)

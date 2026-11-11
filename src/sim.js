@@ -145,7 +145,10 @@ class Sim {
       speed: d.speed, lat: d.lat, r: d.r, dmg: s.dmg,
       off: this.rng() * 2 - 1, phase: this.rng() * 6.28, flash: 0,
     };
-    if (s.type === 'spitter') e.cd = 0.4 + this.rng() * 1.6;
+    if (s.type === 'spitter') {
+      e.cd = 0.4 + this.rng() * 1.6;
+      e.spat = 9; // seconds since it last spat: only the animation reads this
+    }
     this.enemies.push(e);
   }
 
@@ -209,6 +212,7 @@ class Sim {
       }
       if (e.cd !== undefined) {
         e.cd -= dt;
+        e.spat += dt;
         if (e.cd <= 0 && e.z > 9 && e.z < 38) this.spit(e);
       }
       const reach = R + e.r;
@@ -240,6 +244,7 @@ class Sim {
   // is marked on the road at once, so there is time to step aside.
   spit(e) {
     e.cd = 3.0 + this.rng() * 1.2;
+    e.spat = 0;
     const lim = ROAD_HALF - SPIT_R * 0.6;
     const x = Math.max(-lim, Math.min(lim, this.x));
     const ahead = this.bossHold ? 0 : SCROLL * SPIT_FUSE;
