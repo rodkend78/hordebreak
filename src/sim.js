@@ -6,7 +6,7 @@
 // Things in the level sit at a track position s; their z is s - p, where p is
 // how far the squad has marched.
 
-const { ROAD_HALF, SCROLL, DT, VIEW, BULLET_RANGE, MAX_COUNT, ENEMIES, STRIKE_FROM, STRIKE_PER_LEVEL, starsFor, STAR_BONUS } = __m["src/data.js"];
+const { ROAD_HALF, SCROLL, DT, VIEW, BULLET_RANGE, MAX_COUNT, ENEMIES, roadLimit, BOSS_LIMIT, STRIKE_FROM, STRIKE_PER_LEVEL, starsFor, STAR_BONUS } = __m["src/data.js"];
 const { mulberry32 } = __m["src/rng.js"];
 const FUNNEL = 30; // enemies start converging on the squad at this distance
 const GX = 12;
@@ -144,7 +144,7 @@ class Sim {
     const d = ENEMIES[s.type];
     const e = {
       type: s.type, x: s.x, s: s.s, z: s.s - this.p, hp: s.hp, maxHp: s.hp,
-      speed: d.speed, lat: d.lat, r: d.r, dmg: s.dmg,
+      speed: d.speed, lat: d.lat, r: d.r, lim: roadLimit(s.type), dmg: s.dmg,
       off: this.rng() * 2 - 1, phase: this.rng() * 6.28, flash: 0,
     };
     if (s.type === 'spitter') {
@@ -206,8 +206,9 @@ class Sim {
       e.z = e.s - this.p;
       if (e.flash > 0) e.flash -= dt * 6;
       if (e.z < FUNNEL) {
-        // Close enough to notice the squad: pour toward it.
-        const want = this.x + e.off * (R + 0.5);
+        // Close enough to notice the squad: pour toward it, but stay on the
+        // bridge. The squad may hang over the edge; the horde may not.
+        const want = Math.max(-e.lim, Math.min(e.lim, this.x + e.off * (R + 0.5)));
         const d = want - e.x;
         const mv = e.lat * dt;
         e.x += Math.abs(d) <= mv ? d : Math.sign(d) * mv;
@@ -376,7 +377,8 @@ class Sim {
     }
     if (b.stun > 0) b.stun -= dt;
     else if (this.bossHold) b.s -= this.L.boss.speed * dt;
-    const d = this.x - b.x;
+    // It turns to face the squad, but is too broad to follow it to the rail.
+    const d = Math.max(-BOSS_LIMIT, Math.min(BOSS_LIMIT, this.x)) - b.x;
     b.x += Math.sign(d) * Math.min(Math.abs(d), 1.3 * dt);
     b.z = b.s - this.p;
     // Minion waves.
