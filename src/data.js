@@ -22,6 +22,10 @@ const WEAPONS = [
   { id: 'rail', name: 'Railgun', unlock: 10, cost: 1300, dmg: 3.0, interval: 0.45, pellets: 1, spread: 0.01, speed: 54, pierce: 3, splash: 0, crowd: 3.2, desc: 'Each shot punches through four bodies.' },
   { id: 'rocket', name: 'Rocket Launcher', unlock: 14, cost: 2800, dmg: 4.5, interval: 0.8, pellets: 1, spread: 0.04, speed: 26, pierce: 0, splash: 1.5, crowd: 3.6, desc: 'Explodes on impact. Shreds crowds.' },
   { id: 'plasma', name: 'Plasma Cannon', unlock: 19, cost: 6500, dmg: 2.2, interval: 0.22, pellets: 1, spread: 0.04, speed: 40, pierce: 1, splash: 0.8, crowd: 3.5, desc: 'Piercing, exploding bolts.' },
+  // Late game. Their crowd values are estimates; the level check (bot.js) covers any error.
+  { id: 'laser', name: 'Pulse Laser', unlock: 24, cost: 15000, dmg: 2.6, interval: 0.1, pellets: 1, spread: 0.02, speed: 60, pierce: 1, splash: 0, crowd: 1.8, desc: 'A stream of bolts, each through two bodies.' },
+  { id: 'cluster', name: 'Cluster Launcher', unlock: 30, cost: 40000, dmg: 7, interval: 0.7, pellets: 3, spread: 0.04, speed: 28, pierce: 0, splash: 1.6, crowd: 3.4, desc: 'Three rockets a volley. Flattens whole blocks.' },
+  { id: 'nova', name: 'Nova Lance', unlock: 37, cost: 125000, dmg: 14, interval: 0.3, pellets: 1, spread: 0.01, speed: 58, pierce: 4, splash: 1.2, crowd: 4, desc: 'A beam that detonates in every body it crosses.' },
 ];
 
 // ---- Infantry: tougher troops hit harder and sometimes shrug off a hit ----
@@ -32,6 +36,9 @@ const INFANTRY = [
   { id: 'commando', name: 'Commandos', unlock: 9, cost: 950, dmg: 2.3, armor: 0.26, color: [0.42, 0.5, 1.0], desc: '+130% damage, 26% armor.' },
   { id: 'guard', name: 'Elite Guard', unlock: 13, cost: 2200, dmg: 3.1, armor: 0.34, color: [0.72, 0.5, 1.0], desc: '+210% damage, 34% armor.' },
   { id: 'titan', name: 'Titans', unlock: 18, cost: 5000, dmg: 4.2, armor: 0.42, color: [1.0, 0.82, 0.25], desc: '+320% damage, 42% armor.' },
+  { id: 'warden', name: 'Wardens', unlock: 22, cost: 11000, dmg: 5.6, armor: 0.5, color: [0.86, 0.94, 1.0], desc: '+460% damage, 50% armor.' },
+  { id: 'praetor', name: 'Praetorians', unlock: 28, cost: 28000, dmg: 7.5, armor: 0.58, color: [0.34, 0.36, 0.52], desc: '+650% damage, 58% armor.' },
+  { id: 'archon', name: 'Archons', unlock: 35, cost: 90000, dmg: 10, armor: 0.66, color: [0.25, 0.92, 1.0], desc: '+900% damage, 66% armor.' },
 ];
 
 // ---- Repeatable upgrades ----
@@ -53,7 +60,29 @@ const ENEMIES = {
   giant: { name: 'Giant', hp: 55, speed: 1.15, lat: 1.0, r: 1.25, dmg: 5, from: 7 },
   // Artillery: lobs acid at where the squad is heading (see Sim.spit).
   spitter: { name: 'Spitter', hp: 3, speed: 1.3, lat: 1.0, r: 0.5, dmg: 0.6, from: 6 },
+  // Late game: a pack leader as fast as a runner, and a mid-sized golem.
+  dire: { name: 'Dire Hound', hp: 5, speed: 4.0, lat: 3.2, r: 0.5, dmg: 1.2, from: 23 },
+  warlord: { name: 'Warlord', hp: 24, speed: 1.4, lat: 1.3, r: 0.95, dmg: 3, from: 27 },
 };
+
+// From this level on, stretches of road come under shellfire (see levelgen.js).
+const SHELL_FROM = 21;
+
+// Every ten levels is a zone with its own sky, road and light. After the last
+// they come round again, marked II, III...
+const ZONES = [
+  { name: 'Breakwater', sky: [0.62, 0.8, 0.9], road: [0.4, 0.43, 0.54], line: [0.6, 0.63, 0.74], wall: [0.17, 0.23, 0.42], post: [0.22, 0.29, 0.52], lamp: [1.0, 0.6, 0.15], rail: [0.3, 0.38, 0.62], sea: [0.1, 0.42, 0.52], pier: [0.14, 0.19, 0.36], tone: [1, 1, 1] },
+  { name: 'Ashfall', sky: [0.93, 0.6, 0.42], road: [0.42, 0.36, 0.4], line: [0.72, 0.58, 0.55], wall: [0.3, 0.18, 0.24], post: [0.4, 0.24, 0.3], lamp: [1.0, 0.8, 0.3], rail: [0.5, 0.32, 0.38], sea: [0.45, 0.2, 0.2], pier: [0.24, 0.14, 0.18], tone: [1.05, 0.92, 0.85] },
+  { name: 'Nightline', sky: [0.07, 0.09, 0.2], road: [0.2, 0.22, 0.34], line: [0.3, 0.8, 0.9], wall: [0.08, 0.1, 0.22], post: [0.12, 0.14, 0.3], lamp: [0.3, 0.9, 1.0], rail: [0.2, 0.5, 0.7], sea: [0.03, 0.06, 0.16], pier: [0.06, 0.08, 0.18], tone: [0.72, 0.78, 1.0] },
+  { name: 'Blight', sky: [0.5, 0.66, 0.42], road: [0.34, 0.4, 0.36], line: [0.6, 0.72, 0.5], wall: [0.16, 0.26, 0.2], post: [0.2, 0.34, 0.24], lamp: [0.7, 1.0, 0.3], rail: [0.3, 0.5, 0.34], sea: [0.24, 0.4, 0.12], pier: [0.14, 0.22, 0.14], tone: [0.92, 1.0, 0.88] },
+  { name: 'Emberfront', sky: [0.36, 0.1, 0.1], road: [0.3, 0.24, 0.26], line: [0.9, 0.5, 0.3], wall: [0.2, 0.08, 0.08], post: [0.3, 0.1, 0.1], lamp: [1.0, 0.4, 0.15], rail: [0.5, 0.2, 0.16], sea: [0.5, 0.14, 0.04], pier: [0.16, 0.07, 0.07], tone: [1.0, 0.86, 0.8] },
+];
+function zoneOf(n) {
+  const i = Math.floor((Math.max(1, n) - 1) / 10);
+  const lap = Math.floor(i / ZONES.length);
+  const z = ZONES[i % ZONES.length];
+  return { ...z, title: z.name + (lap ? ' ' + ['II', 'III', 'IV', 'V', 'VI'][Math.min(4, lap - 1)] : ''), first: (n - 1) % 10 === 0 };
+}
 
 // One line of advice the first time an enemy shows up.
 const ENEMY_TIPS = {
@@ -63,6 +92,8 @@ const ENEMY_TIPS = {
   giant: 'A Giant leads the last stand. Keep every gun on it.',
   shield: 'Shieldbearers take four times the punishment of a grunt.',
   bomber: 'Bombers blow a hole in the squad. Drop them early.',
+  dire: 'Dire Hounds run as fast as the pack and take five times the fire.',
+  warlord: 'Warlords hit for three soldiers. Focus them before they close.',
 };
 
 // The airstrike: charged by kills, called in by the player.
@@ -272,4 +303,4 @@ function fmt(n) {
   return (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2)) + units[u];
 }
 
-return { ROAD_HALF, SCROLL, DT, VIEW, BULLET_RANGE, MAX_COUNT, START_COUNT, WEAPONS, INFANTRY, UPGRADES, ENEMIES, ENEMY_TIPS, STRIKE_FROM, STRIKE_PER_LEVEL, bossName, starsFor, STAR_BONUS, isBossLevel, levelReward, upgradeCost, weaponPower, newSave, byId, loadoutOf, shopOffers, buy, bestPurchase, canUpgrade, autoSpend, refAt, fmt };
+return { ROAD_HALF, SCROLL, DT, VIEW, BULLET_RANGE, MAX_COUNT, START_COUNT, WEAPONS, INFANTRY, UPGRADES, ENEMIES, ENEMY_TIPS, SHELL_FROM, ZONES, zoneOf, STRIKE_FROM, STRIKE_PER_LEVEL, bossName, starsFor, STAR_BONUS, isBossLevel, levelReward, upgradeCost, weaponPower, newSave, byId, loadoutOf, shopOffers, buy, bestPurchase, canUpgrade, autoSpend, refAt, fmt };

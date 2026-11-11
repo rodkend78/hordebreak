@@ -1,6 +1,6 @@
 // Ties everything together: saving, the game loop, touch controls, effects.
 
-const { DT, ROAD_HALF, WEAPONS, INFANTRY, ENEMIES, newSave, loadoutOf, buy, canUpgrade, starsFor } = __m["src/data.js"];
+const { DT, ROAD_HALF, WEAPONS, INFANTRY, ENEMIES, zoneOf, newSave, loadoutOf, buy, canUpgrade, starsFor } = __m["src/data.js"];
 const { Sim, coinsEarned } = __m["src/sim.js"];
 const { planLevel, botThink } = __m["src/bot.js"];
 const { Renderer } = __m["src/render.js"];
@@ -99,6 +99,7 @@ function startBattle() {
   if (!plan.verified) toast('Outgunned: upgrade first', 2200);
   else if (plan.level.boss) toast('Boss level', 1800);
   else if (newcomer) toast('New enemy: ' + ENEMIES[newcomer].name, 2400);
+  else if (zoneOf(sim.L.n).first && sim.L.n > 1) toast('Entering ' + zoneOf(sim.L.n).title, 2400);
 }
 
 function callStrike() {

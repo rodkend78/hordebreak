@@ -14,7 +14,7 @@
 // The simulation uses z = distance ahead of the squad. On screen that is "up
 // the road", which in GL is -z, so world z is negated when drawing.
 
-const { ROAD_HALF, SCROLL, INFANTRY, byId, fmt } = __m["src/data.js"];
+const { ROAD_HALF, SCROLL, INFANTRY, byId, fmt, zoneOf } = __m["src/data.js"];
 const { buildMeshes, decodeAnim, VERT_SIZE } = __m["src/meshes.js"];
 const { ENEMY_LOOK, FAR_Z, FAR_MESH, WEAPON_LOOK, GATE_COLORS, HAZARD_COLORS, bossColor, BOSS_SCALE, squadMeshes, enemySize, enemyShade, squadSlot } = __m["src/look.js"];
 const MESH_VERT = `#version 300 es
@@ -72,6 +72,7 @@ uniform vec3 uFogCol;
 uniform vec3 uEye;
 uniform float uAlpha;
 uniform vec3 uLightPos[2];
+uniform vec3 uTone;      // the zone's light: dusk, night...
 uniform vec4 uLightCol[2];
 out vec4 o;
 void main() {
@@ -82,7 +83,7 @@ void main() {
   vec3 amb = mix(vec3(0.40, 0.42, 0.58), vec3(0.72, 0.80, 0.96), n.y * 0.5 + 0.5);
   float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0);
   float spec = pow(max(dot(n, normalize(L + V)), 0.0), 26.0);
-  vec3 lit = vCol * (amb * 0.62 + vec3(1.0, 0.95, 0.86) * diff * 0.56) + rim * 0.14 * vec3(0.75, 0.88, 1.0) + spec * 0.12;
+  vec3 lit = (vCol * (amb * 0.62 + vec3(1.0, 0.95, 0.86) * diff * 0.56) + rim * 0.14 * vec3(0.75, 0.88, 1.0) + spec * 0.12) * uTone;
   for (int i = 0; i < 2; i++) {
     vec3 d = uLightPos[i] - vPos;
     float att = uLightCol[i].a / (1.0 + dot(d, d) * 0.3);
@@ -161,13 +162,10 @@ void main() {
   o = vec4(c, a);
 }`;
 
-const SKY = [0.62, 0.8, 0.9];
 const STRIDE = 16; // floats per mesh instance
 const SPRITE_STRIDE = 12;
 const WHITE = [1, 1, 1];
 const SHADOW = [0.02, 0.03, 0.08];
-// A mid-dark deck, so tracers, flashes and fire show up against it.
-const ROAD = [0.4, 0.43, 0.54];
 
 // ---- tiny matrix helpers (column-major) ----
 function perspective(fovy, aspect, near, far) {
@@ -343,7 +341,7 @@ class Renderer {
     this.prog = program(gl, MESH_VERT, MESH_FRAG);
     this.sprog = program(gl, SPRITE_VERT, SPRITE_FRAG);
     const loc = (p, names) => Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(p, n)]));
-    this.u = loc(this.prog, ['uVP', 'uAnim', 'uFog', 'uFogCol', 'uEye', 'uAlpha', 'uLightPos', 'uLightCol']);
+    this.u = loc(this.prog, ['uVP', 'uAnim', 'uFog', 'uFogCol', 'uEye', 'uAlpha', 'uLightPos', 'uLightCol', 'uTone']);
     this.su = loc(this.sprog, ['uVP', 'uRight', 'uUp', 'uFog', 'uFogCol', 'uAdd']);
     const m = buildMeshes();
     // The animation table lives in a float texture the vertex shader reads.
@@ -472,27 +470,28 @@ class Renderer {
   drawWorld(sim) {
     const b = this.b;
     const p = sim.p;
-    b.box.add(0, -0.3, 40, ROAD_HALF * 2 + 0.2, 0.6, 130, ROAD);
+    const zn = this.zone;
+    b.box.add(0, -0.3, 40, ROAD_HALF * 2 + 0.2, 0.6, 130, zn.road);
     for (let k = 0; k < 20; k++) {
       const z = k * 6 - (p % 6) - 8;
-      b.box.add(0, 0.005, z, ROAD_HALF * 2, 0.02, 0.14, [0.6, 0.63, 0.74]);
+      b.box.add(0, 0.005, z, ROAD_HALF * 2, 0.02, 0.14, zn.line);
     }
     for (const side of [-1, 1]) {
       const x = side * (ROAD_HALF + 0.45);
-      b.box.add(x, 0.15, 40, 0.7, 0.9, 130, [0.17, 0.23, 0.42]);
+      b.box.add(x, 0.15, 40, 0.7, 0.9, 130, zn.wall);
       for (let k = 0; k < 14; k++) {
         const z = k * 9 - (p % 9) - 8;
-        b.box.add(x, 1.0, z, 0.36, 1.7, 0.36, [0.22, 0.29, 0.52]);
-        b.box.add(x, 1.95, z, 0.46, 0.2, 0.46, [1.0, 0.6, 0.15], 0, 0.9);
-        this.glow.add(x, 2.0, z, 0.7, 0.7, 0, 0, [1.0, 0.6, 0.15], 0.5, 0);
+        b.box.add(x, 1.0, z, 0.36, 1.7, 0.36, zn.post);
+        b.box.add(x, 1.95, z, 0.46, 0.2, 0.46, zn.lamp, 0, 0.9);
+        this.glow.add(x, 2.0, z, 0.7, 0.7, 0, 0, zn.lamp, 0.5, 0);
       }
-      b.box.add(x, 1.45, 40, 0.14, 0.14, 130, [0.3, 0.38, 0.62]);
+      b.box.add(x, 1.45, 40, 0.14, 0.14, 130, zn.rail);
     }
     // Sea far below, with piers sliding past.
-    b.box.add(0, -9, 50, 400, 0.2, 260, [0.1, 0.42, 0.52]);
+    b.box.add(0, -9, 50, 400, 0.2, 260, zn.sea);
     for (let k = 0; k < 4; k++) {
       const z = k * 36 - (p % 36) - 6;
-      b.box.add(0, -5, z, ROAD_HALF * 2 + 3.2, 9, 3, [0.14, 0.19, 0.36]);
+      b.box.add(0, -5, z, ROAD_HALF * 2 + 3.2, 9, 3, zn.pier);
     }
     if (!sim.L.boss) {
       const fz = sim.L.length - p;
@@ -636,16 +635,20 @@ class Renderer {
     const arms = this.b[sq.arms];
     const nVis = Math.min(sim.count, 60);
     const marching = sim.t > 0 && !sim.bossHold && !sim.result; // otherwise they stand ready
+    const base = marching ? 'walk' : 'idle';
+    const stagger = Math.min(0.07, sim.lo.interval * 0.4); // the squad does not fire as one
     const lean = Math.max(-0.35, Math.min(0.35, (sim.targetX - sim.x) * 0.25));
     for (let i = 0; i < nVis; i++) {
       const s = squadSlot(sim, i, nVis);
       const ph = i * 1.7;
       const bob = 0;
-      if (marching) this.pose(sq.body, 'walk', (time * 9 + ph) / 6.2832);
-      else this.pose(sq.body, 'idle', time * 0.35 + ph);
+      // Firing: for a moment after its shot a trooper is in the recoil clip, then the settling one.
+      const age = fx.shotAge - ((i * 0.618) % 1) * stagger;
+      const clip = age < 0 || age > 0.13 ? base : age < 0.05 ? base + '_f2' : base + '_f1';
+      this.pose(sq.body, clip, marching ? (time * 9 + ph) / 6.2832 : time * 0.35 + ph);
       // Each volley kicks the troopers back a touch.
-      body.add(s.x, bob, s.z - fx.recoil * 0.06, 0.92, 0.92, 0.92, inf.color, lean, 0, fx.squadFlash, this.fa, fx.recoil * 0.1, this.fb);
-      arms.add(s.x, bob, s.z - fx.recoil * 0.06, 0.92, 0.92, 0.92, inf.color, lean, 0, fx.squadFlash, this.fa, fx.recoil * 0.1, this.fb);
+      body.add(s.x, bob, s.z, 0.92, 0.92, 0.92, inf.color, lean, 0, fx.squadFlash, this.fa, 0, this.fb);
+      arms.add(s.x, bob, s.z, 0.92, 0.92, 0.92, inf.color, lean, 0, fx.squadFlash, this.fa, 0, this.fb);
       this.shadow(s.x, s.z, 0.42, 0.3);
     }
   }
@@ -687,7 +690,7 @@ class Renderer {
       const blink = h.t < 0.35 ? 0.65 + 0.35 * Math.sin(time * 50) : 1;
       const w = h.x1 - h.x0;
       const mid = (h.x0 + h.x1) / 2;
-      if (h.kind === 'acid') {
+      if (h.kind === 'acid' || h.kind === 'shell') {
         const r = h.zr;
         this.glow.add(mid, 0.05, z, r / 0.78, r / 0.78, 0, 1, col, 0.95 * blink, 1);
         this.glow.add(mid, 0.045, z, r * (0.25 + 0.75 * k), r * (0.25 + 0.75 * k), 0, 2, col, (0.25 + 0.4 * k) * blink, 1);
@@ -737,6 +740,8 @@ class Renderer {
   draw(sim, fx, time) {
     this.resize();
     const gl = this.gl;
+    this.zone = zoneOf(sim.L.n); // sky, road and light for this stretch of the campaign
+    const sky = this.zone.sky;
     this.camera(sim.x, fx.shake);
     const tags = [];
     this.drawWorld(sim);
@@ -748,7 +753,7 @@ class Renderer {
     this.drawFx(fx);
 
     gl.viewport(0, 0, this.w, this.h);
-    gl.clearColor(SKY[0], SKY[1], SKY[2], 1);
+    gl.clearColor(sky[0], sky[1], sky[2], 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
@@ -761,9 +766,10 @@ class Renderer {
     gl.bindTexture(gl.TEXTURE_2D, this.animTex);
     gl.uniform1i(this.u.uAnim, 0);
     gl.uniform2f(this.u.uFog, 52, 105);
-    gl.uniform3f(this.u.uFogCol, SKY[0], SKY[1], SKY[2]);
+    gl.uniform3f(this.u.uFogCol, sky[0], sky[1], sky[2]);
     gl.uniform3f(this.u.uEye, this.eye[0], this.eye[1], this.eye[2]);
     gl.uniform1f(this.u.uAlpha, 1);
+    gl.uniform3fv(this.u.uTone, this.zone.tone);
     const l0 = fx.light0, l1 = fx.light1;
     gl.uniform3fv(this.u.uLightPos, [l0.x, l0.y, -l0.z, l1.x, l1.y, -l1.z]);
     gl.uniform4fv(this.u.uLightCol, [l0.col[0], l0.col[1], l0.col[2], l0.i, l1.col[0], l1.col[1], l1.col[2], l1.i]);
@@ -779,7 +785,7 @@ class Renderer {
     gl.uniform3fv(this.su.uRight, this.right);
     gl.uniform3fv(this.su.uUp, this.up);
     gl.uniform2f(this.su.uFog, 52, 105);
-    gl.uniform3f(this.su.uFogCol, SKY[0], SKY[1], SKY[2]);
+    gl.uniform3f(this.su.uFogCol, sky[0], sky[1], sky[2]);
     gl.uniform1f(this.su.uAdd, 0);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     this.under.flush();

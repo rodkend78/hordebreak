@@ -48,8 +48,9 @@ class Sim {
     this.kills = 0;
     this.lost = 0;
     this.result = null;
-    // Marked ground that is about to be hit: acid blobs, boss attacks.
+    // Marked ground that is about to be hit: acid blobs, boss attacks, shellfire.
     this.hazards = [];
+    this.shells = (level.shells || []).map((z) => ({ ...z, left: z.count, t: 0.4, on: false }));
     this.dodged = 0;
     // Airstrike: charge fills with kills; the player decides when to spend it.
     let worth = 0;
@@ -120,6 +121,7 @@ class Sim {
     // 6. Bullets fly and hit.
     this.updateBullets(dt);
     if (this.strike) this.updateStrike(dt);
+    if (this.shells.length) this.updateShells(dt);
     if (this.hazards.length) this.updateHazards(dt, R);
 
     // 7. Gates, barriers and crates we have just reached.
@@ -250,6 +252,28 @@ class Sim {
     const ahead = this.bossHold ? 0 : SCROLL * SPIT_FUSE;
     this.hazards.push({ kind: 'acid', x0: x - SPIT_R, x1: x + SPIT_R, s: this.p + ahead, zr: SPIT_R, t: SPIT_FUSE, t0: SPIT_FUSE, share: 0.12, min: 1.5 });
     this.emit({ t: 'spit', x: e.x, z: e.z, tx: x, tz: ahead, fuse: SPIT_FUSE });
+  }
+
+  // Shellfire: while the squad is in a shelled stretch, a round is called in
+  // every so often on the spot the squad will reach when it lands.
+  updateShells(dt) {
+    for (const z of this.shells) {
+      if (z.left <= 0 || this.p < z.s || this.bossHold) continue;
+      if (!z.on) {
+        z.on = true;
+        this.emit({ t: 'shelling' });
+      }
+      z.t -= dt;
+      if (z.t > 0) continue;
+      z.t = z.every;
+      z.left--;
+      const fuse = 1.3;
+      const r = 1.35;
+      const lim = ROAD_HALF - r * 0.6;
+      const x = Math.max(-lim, Math.min(lim, this.x + (this.rng() - 0.5) * 0.8));
+      this.hazards.push({ kind: 'shell', x0: x - r, x1: x + r, s: this.p + SCROLL * fuse, zr: r, t: fuse, t0: fuse, share: 0.1, min: 1.5 });
+      this.emit({ t: 'shell', x, z: SCROLL * fuse, fuse });
+    }
   }
 
   // How much of the squad's width stands on a hazard (0..1).

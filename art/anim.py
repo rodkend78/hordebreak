@@ -199,6 +199,22 @@ def trooper_idle(u):
     return {'chest': B(up=0.006 * S(u)), 'head': B(0, 0, 3 * S(u)), 'gun': B(0.8 * S(u))}
 
 
+def fired(base, k):
+    """A clip with the weapon's kick laid over it: k = 1 at the shot, 0.5 as it settles."""
+    def pose(u):
+        p = base(u)
+        g = p.get('gun', B())
+        c = p.get('chest', B())
+        r = p.get('root', B())
+        h = p.get('head', B())
+        p['gun'] = {'rot': (g['rot'][0] - 9 * k, g['rot'][1], g['rot'][2]), 'move': (g['move'][0], g['move'][1] + 0.07 * k, g['move'][2] + 0.02 * k)}
+        p['chest'] = {'rot': (c['rot'][0] - 5 * k, c['rot'][1], c['rot'][2]), 'move': c['move']}
+        p['head'] = {'rot': (h['rot'][0] + 3 * k, h['rot'][1], h['rot'][2]), 'move': h['move']}
+        p['root'] = {'rot': r['rot'], 'move': (r['move'][0], r['move'][1] + 0.02 * k, r['move'][2])}
+        return p
+    return pose
+
+
 # rig name -> clip name -> (pose function, frames, loops?)
 CLIPS = {
     'grunt': {'walk': (grunt_walk, 16, True), 'attack': (grunt_attack, 12, False)},
@@ -207,5 +223,10 @@ CLIPS = {
     'bomber': {'walk': (bomber_walk, 16, True), 'attack': (bomber_attack, 12, False)},
     'spitter': {'walk': (spitter_walk, 16, True), 'attack': (spitter_attack, 14, False)},
     'heavy': {'walk': (heavy_walk, 16, True), 'attack': (heavy_attack, 12, False)},
-    'trooper': {'walk': (trooper_walk, 16, True), 'idle': (trooper_idle, 8, True)},
+    'trooper': {
+        'walk': (trooper_walk, 16, True), 'idle': (trooper_idle, 8, True),
+        # the same two clips mid-recoil and settling: the renderer steps a trooper through them after each volley
+        'walk_f2': (fired(trooper_walk, 1.0), 16, True), 'walk_f1': (fired(trooper_walk, 0.45), 16, True),
+        'idle_f2': (fired(trooper_idle, 1.0), 8, True), 'idle_f1': (fired(trooper_idle, 0.45), 8, True),
+    },
 }

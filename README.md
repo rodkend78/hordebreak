@@ -7,6 +7,11 @@ infantry and upgrades between battles.
 
 **Play it: https://rodkend78.github.io/hordebreak/**
 
+The campaign is endless and runs through five zones of ten levels each
+(Breakwater, Ashfall, Nightline, Blight, Emberfront), then round again. New
+enemies, weapons and troop ranks keep unlocking up to level 37, and from
+level 21 stretches of road come under shellfire.
+
 The whole game is a single file, `index.html`: plain WebGL2 and WebAudio, no
 libraries, no image or sound files. Open it in a browser to play.
 
@@ -79,7 +84,9 @@ part of a model is carried rigidly by one bone, like a jointed toy.
 Clips are written in `art/anim.py` as functions from a phase to a pose: walk
 cycles with knees that fold through the stride, and an attack per enemy (the
 grunt's two-handed claw, the hound's pounce, the shieldbearer's spear thrust,
-the golem's overhead smash, the spitter rearing back to spit). The build bakes
+the golem's overhead smash, the spitter rearing back to spit). Troopers also
+have recoil versions of their march and stance, which the renderer steps them
+through after each volley. The build bakes
 them to 16 or so frames each and packs them as a quaternion and a shift per
 bone, about 29 KB in all.
 

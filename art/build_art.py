@@ -33,7 +33,7 @@ for name, (fn, tint, scale) in models.ENEMIES.items():
 kit.set_lod(0)
 # Troopers: body per rank, arms+gun per weapon (baked standing against a body).
 bodies = []
-for t in range(6):
+for t in range(len(models.INFANTRY)):
     m = models.trooper(t); recs, meshes = collect(m)
     export(m.name, m, recs); built[m.name] = (m, recs, meshes); bodies.append(recs)
 for w in models.WEAPONS:
@@ -108,13 +108,13 @@ if MODE in ('all', 'boss'):
 if MODE in ('all', 'squad'):
     items = []
     for i, (iname, tint) in enumerate(models.INFANTRY):
-        x = (i - 2.5) * 1.15
-        w = models.WEAPONS[i % 7]
+        x = (i - 4) * 1.15
+        w = models.WEAPONS[(i + 1) % len(models.WEAPONS)]
         # troopers are modelled facing -Y like everything else
         items.append(('inf%d' % i, tint, (x, 0, 0), 0.0, 1.0))
         items.append(('w_' + w, tint, (x, 0, 0), 0.0, 1.0))
     items.append(('inf1', models.INFANTRY[1][1], (4.1, 0, 0), 0.0, 1.0)); items.append(('w_plasma', models.INFANTRY[1][1], (4.1, 0, 0), 0.0, 1.0))
-    sheet(os.path.join(OUT, 'sheet_squad_front.png'), items, (-2.0, -8.4, 2.9), (0.6, 0, 0.8), lens=44)
+    sheet(os.path.join(OUT, 'sheet_squad_front.png'), items, (-2.2, -11.5, 3.4), (0.3, 0, 0.9), lens=44)
     # in game the squad is seen from behind and above
     sheet(os.path.join(OUT, 'sheet_squad_game.png'), items, (0.5, 4.6, 6.4), (0.5, -0.5, 0.5), lens=40)
 if MODE in ('all', 'props'):
@@ -142,7 +142,8 @@ if MODE in ('all', 'thumbs'):
         m = models.weapon(w, arms=False)
         # centre along the barrel, height, length
         cy, cz, L = {'rifle': (-0.42, 0.79, 1.08), 'smg': (-0.31, 0.76, 0.82), 'shotgun': (-0.41, 0.79, 1.18), 'mg': (-0.48, 0.68, 1.12),
-                     'rail': (-0.44, 0.79, 1.16), 'rocket': (-0.21, 0.99, 1.26), 'plasma': (-0.34, 0.78, 0.9)}[w]
+                     'rail': (-0.44, 0.79, 1.16), 'rocket': (-0.21, 0.99, 1.26), 'plasma': (-0.34, 0.78, 0.9),
+                     'laser': (-0.46, 0.79, 1.14), 'cluster': (-0.14, 1.0, 1.02), 'nova': (-0.52, 0.8, 1.22)}[w]
         thumb(w, [(m, (0.3, 0.88, 1.0), ())], (4.2, cy - 1.0, cz + 1.1), (0.17, cy, cz), L * 1.04, roll=-28)
     for i, (iname, tint) in enumerate(models.INFANTRY):
         body = models.trooper(i)

@@ -1,6 +1,6 @@
 // Menus and the heads-up display, built as ordinary HTML on top of the canvas.
 
-const { WEAPONS, INFANTRY, ENEMIES, ENEMY_TIPS, STRIKE_FROM, STAR_BONUS, shopOffers, loadoutOf, byId, isBossLevel, bossName, levelReward, fmt } = __m["src/data.js"];
+const { WEAPONS, INFANTRY, ENEMIES, ENEMY_TIPS, STRIKE_FROM, STAR_BONUS, SHELL_FROM, zoneOf, shopOffers, loadoutOf, byId, isBossLevel, bossName, levelReward, fmt } = __m["src/data.js"];
 const { THUMBS } = __m["src/thumbs.js"];
 const qs = (sel, root = document) => root.querySelector(sel);
 const thumb = (id) => (THUMBS[id] ? `<img class="thumb" src="${THUMBS[id]}" alt="" width="56" height="56">` : '');
@@ -106,7 +106,7 @@ function renderHome(save, plan) {
   setBadges(save);
   const lo = loadoutOf(save);
   const boss = isBossLevel(save.level);
-  qs('#home-level').innerHTML = `Level ${save.level}${boss ? ' <b class="tag foe">Boss</b>' : ''}`;
+  qs('#home-level').innerHTML = `Level ${save.level} <span class="zone">${zoneOf(save.level).title}</span>${boss ? ' <b class="tag foe">Boss</b>' : ''}`;
   const eased = plan && plan.mercy < 1;
   const walled = plan && !plan.verified;
   qs('#btn-armory').classList.toggle('nudge', !!walled);
@@ -120,6 +120,8 @@ function renderHome(save, plan) {
     ? `New enemy: ${ENEMIES[newcomer].name}. ${ENEMY_TIPS[newcomer]}`
     : save.level === STRIKE_FROM
     ? 'Air support is on call. Kills charge the Strike button; tap it to bomb the road ahead.'
+    : save.level === SHELL_FROM
+    ? 'New ground: Nightline. Stretches of this road are shelled. Keep moving off the marked ground.'
     : eased
       ? 'Scouts thinned the horde to match your squad. Stronger gear earns the full reward.'
       : `Reach the finish line. Clearing this level pays about ${fmt(levelReward(save.level) * lo.coinMul)} coins.`;

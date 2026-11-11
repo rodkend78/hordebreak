@@ -12,6 +12,9 @@ const ENEMY_LOOK = {
   bomber: { mesh: 'bomber', col: [1.0, 0.78, 0.1], s: 1.05, walk: 13, atk: 0.5 },
   giant: { mesh: 'giant', col: [0.74, 0.16, 0.38], s: 1.95, walk: 3.6, atk: 0.95 },
   spitter: { mesh: 'spitter', col: [0.42, 0.86, 0.3], s: 1.08, walk: 6 },
+  // Late-game variants reuse a model at a new size and colour.
+  dire: { mesh: 'runner', col: [0.4, 0.5, 0.85], s: 1.6, walk: 12, atk: 0.46 },
+  warlord: { mesh: 'brute', col: [1.0, 0.72, 0.18], s: 1.5, walk: 4.2, atk: 0.82 },
 };
 // Crowd types switch to a lighter model beyond this distance.
 const FAR_Z = 32;
@@ -35,6 +38,9 @@ const WEAPON_LOOK = {
   rail: { col: [0.35, 0.85, 1.0], w: 0.13, len: 4.5, flash: 0.8, light: 1.1, beam: true, mz: 0.96, my: 0.73 },
   rocket: { col: [1.0, 0.55, 0.18], flash: 0.9, light: 1.0, rocket: true, mz: 0.8, my: 0.91 },
   plasma: { col: [0.9, 0.35, 1.0], w: 0.15, len: 1.3, flash: 0.7, light: 1.0, orb: 0.55, mz: 0.72, my: 0.71 },
+  laser: { col: [1.0, 0.32, 0.25], w: 0.07, len: 2.8, flash: 0.5, light: 0.8, mz: 0.94, my: 0.74 },
+  cluster: { col: [1.0, 0.55, 0.18], flash: 0.9, light: 1.0, rocket: true, mz: 0.6, my: 0.92 },
+  nova: { col: [1.0, 0.9, 0.5], w: 0.2, len: 5.5, flash: 1.0, light: 1.3, beam: true, orb: 0.5, mz: 1.0, my: 0.72 },
 };
 
 // Which two models make a trooper: a body per rank, arms and gun per weapon.
@@ -44,7 +50,7 @@ function squadMeshes(lo) {
 }
 
 // Colours of the two kinds of marked ground.
-const HAZARD_COLORS = { acid: [0.5, 1.0, 0.2], slam: [1.0, 0.25, 0.18] };
+const HAZARD_COLORS = { acid: [0.5, 1.0, 0.2], slam: [1.0, 0.25, 0.18], shell: [1.0, 0.55, 0.15] };
 
 const GATE_COLORS = {
   add: [0.16, 0.6, 1.0],
