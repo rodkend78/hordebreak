@@ -15,7 +15,14 @@ const ENEMY_LOOK = {
   // Late-game variants reuse a model at a new size and colour.
   dire: { mesh: 'runner', col: [0.4, 0.5, 0.85], s: 1.6, walk: 12, atk: 0.46 },
   warlord: { mesh: 'brute', col: [1.0, 0.72, 0.18], s: 1.5, walk: 4.2, atk: 0.82 },
+  // Past level 50. A whelp is the hound model, small and pale.
+  brood: { mesh: 'brood', col: [1.0, 0.42, 0.68], s: 1.35, walk: 5.5, atk: 0.6 },
+  whelp: { mesh: 'runner', col: [1.0, 0.62, 0.8], s: 0.6, walk: 17, atk: 0.34 },
+  ram: { mesh: 'ram', col: [0.1, 0.62, 0.55], s: 1.9, walk: 7 },
+  warder: { mesh: 'warder', col: [0.45, 0.8, 1.0], s: 1.25, walk: 6, atk: 0.6 },
 };
+// The colour of a warder's shield, on the ground around it and on whatever it covers.
+const WARD_COLOR = [0.5, 0.9, 1.0];
 // Crowd types switch to a lighter model beyond this distance.
 const FAR_Z = 32;
 const FAR_MESH = { grunt: 1, runner: 1, shield: 1, bomber: 1, spitter: 1, brute: 1 };
@@ -26,6 +33,14 @@ function bossColor(n) {
 }
 const BOSS_COLOR = BOSS_COLORS[0];
 const BOSS_SCALE = 3.1;
+// How each kind of boss is drawn: s = size, walk = stride speed, core = where
+// its lit heart sits (height, and how far ahead of its feet), loop = its
+// attack repeats for as long as its marks are down (the queen keeps spitting).
+const BOSS_LOOK = {
+  golem: { mesh: 'boss', s: BOSS_SCALE, walk: 2.4, shadow: 3.4, core: [3.0, -1.0], glow: [1, 0.5, 0.15] },
+  queen: { mesh: 'queen', s: 3.3, walk: 3.4, shadow: 2.8, core: [4.3, -2.4], glow: [0.6, 1, 0.25], loop: true },
+  beast: { mesh: 'beast', s: 4.0, walk: 5.5, shadow: 3.2, core: [2.1, -1.9], glow: [1, 0.6, 0.15] },
+};
 
 // col = tracer colour, w/len = tracer size, flash = muzzle flash size,
 // light = how strongly a volley lights up the squad and the road.
@@ -50,7 +65,7 @@ function squadMeshes(lo) {
 }
 
 // Colours of the two kinds of marked ground.
-const HAZARD_COLORS = { acid: [0.5, 1.0, 0.2], slam: [1.0, 0.25, 0.18], shell: [1.0, 0.55, 0.15] };
+const HAZARD_COLORS = { acid: [0.5, 1.0, 0.2], slam: [1.0, 0.25, 0.18], shell: [1.0, 0.55, 0.15], charge: [1.0, 0.8, 0.2] };
 
 const GATE_COLORS = {
   add: [0.16, 0.6, 1.0],
@@ -79,4 +94,4 @@ function squadSlot(sim, i, nVis) {
   return { x: sim.x + Math.cos(a) * r, z: Math.sin(a) * r };
 }
 
-return { ENEMY_LOOK, FAR_Z, FAR_MESH, BOSS_COLOR, bossColor, BOSS_SCALE, WEAPON_LOOK, GATE_COLORS, HAZARD_COLORS, squadMeshes, enemySize, enemyShade, squadSlot };
+return { ENEMY_LOOK, WARD_COLOR, FAR_Z, FAR_MESH, BOSS_COLOR, bossColor, BOSS_SCALE, BOSS_LOOK, WEAPON_LOOK, GATE_COLORS, HAZARD_COLORS, squadMeshes, enemySize, enemyShade, squadSlot };

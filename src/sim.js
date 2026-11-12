@@ -6,10 +6,17 @@
 // Things in the level sit at a track position s; their z is s - p, where p is
 // how far the squad has marched.
 
-const { ROAD_HALF, SCROLL, DT, VIEW, BULLET_RANGE, MAX_COUNT, ENEMIES, roadLimit, BOSS_LIMIT, STRIKE_FROM, STRIKE_PER_LEVEL, starsFor, STAR_BONUS } = __m["src/data.js"];
+const { ROAD_HALF, SCROLL, DT, VIEW, BULLET_RANGE, MAX_COUNT, ENEMIES, WARD_CUT, roadLimit, BOSS_KINDS, STRIKE_FROM, STRIKE_PER_LEVEL, starsFor, STAR_BONUS } = __m["src/data.js"];
 const { mulberry32 } = __m["src/rng.js"];
 const MAX_VOLLEYS = 30; // volleys a second the squad can loose; see volley()
-const FUNNEL = 30; // enemies start converging on the squad at this distance
+const FUNNEL = 30;
+// A ram's charge. It marks its lane from beyond the reach of the guns, stands
+// for a moment, then runs: the squad gets one pass at it as it comes.
+const RAM_SIGHT = 33;
+const RAM_NEAR = 20;
+const RAM_FUSE = 1.6; // seconds from the mark to the hit
+const RAM_PAW = 0.6; // of which it spends this long pawing the ground
+const RAM_RUN = 22; // how fast it keeps going if it misses // enemies start converging on the squad at this distance
 const GX = 12;
 const GZ = VIEW + 4;
 const SPIT_FUSE = 1.5; // seconds an acid blob spends in the air
@@ -43,8 +50,11 @@ class Sim {
     this.barriers = level.barriers.map((b) => ({ ...b, hp: b.maxHp, alive: true, flash: 0 }));
     this.crates = level.crates.map((c) => ({ ...c, hp: c.maxHp, alive: true, flash: 0 }));
     this.boss = level.boss
-      ? { x: 0, s: level.boss.s, z: level.boss.s, hp: level.boss.hp, maxHp: level.boss.hp, r: 2.2, flash: 0, spawnT: 2, stun: 0, awake: false, atkT: 3.2 }
+      ? { kind: level.boss.kind || 'golem', x: 0, s: level.boss.s, z: level.boss.s, hp: level.boss.hp, maxHp: level.boss.hp, r: BOSS_KINDS[level.boss.kind || 'golem'].r, flash: 0, spawnT: 2, stun: 0, awake: false, atkT: 3.2, lobs: 0, lobT: 0 }
       : null;
+    this.births = []; // broodmothers that fell this step: their whelps hatch on the next
+    this.wards = []; // warders alive last step, and the list being built for the next
+    this.wards2 = [];
     this.bossHold = false;
     this.kills = 0;
     this.lost = 0;
@@ -148,6 +158,11 @@ class Sim {
       speed: d.speed, lat: d.lat, r: d.r, lim: roadLimit(s.type), dmg: s.dmg,
       off: this.rng() * 2 - 1, phase: this.rng() * 6.28, flash: 0,
     };
+    if (d.ward) e.wardR = d.ward;
+    if (s.type === 'ram') {
+      e.chg = 0; // 0 walking, 1 lane marked and charging, 2 ran past
+      e.off *= 0.3; // it lines up on the middle of the squad, not its flank
+    }
     if (s.type === 'spitter') {
       e.cd = 0.4 + this.rng() * 1.6;
       e.spat = 9; // seconds since it last spat: only the animation reads this
@@ -198,20 +213,43 @@ class Sim {
   }
 
   updateEnemies(dt, R) {
+    if (this.births.length) {
+      for (const b of this.births) this.hatch(b);
+      this.births.length = 0;
+    }
     const en = this.enemies;
     const head = this.gridHead;
     head.fill(-1);
     if (this.gridNext.length < en.length + 64) this.gridNext = new Int32Array(en.length * 2 + 64);
     const next = this.gridNext;
     this.bigs.length = 0;
+    const wards = this.wards;
+    const wardsNext = this.wards2;
+    wardsNext.length = 0;
     let w = 0;
     for (let i = 0; i < en.length; i++) {
       const e = en[i];
       if (e.hp <= 0) continue;
-      e.s -= e.speed * dt;
+      if (e.chg) this.chargeStep(e, dt);
+      else e.s -= e.speed * dt;
       e.z = e.s - this.p;
       if (e.flash > 0) e.flash -= dt * 6;
-      if (e.z < FUNNEL) {
+      // Anything standing near a live warder is shielded (warders do not shield each other).
+      if (e.wardR) wardsNext.push(e);
+      else if (wards.length) {
+        let near = false;
+        for (const k of wards) {
+          const dx = e.x - k.x;
+          const dz = e.z - k.z;
+          if (k.hp > 0 && dx * dx + dz * dz <= k.wardR * k.wardR) {
+            near = true;
+            break;
+          }
+        }
+        e.warded = near;
+      } else if (e.warded) e.warded = false;
+      if (e.chg === 0 && e.z < RAM_SIGHT && e.z > RAM_NEAR && this.count > 0 && !this.result) this.markCharge(e);
+      if (e.z < (e.chg === 0 ? VIEW : FUNNEL) && !e.chg) { // (a ram lines up from as far off as it can see)
         // Close enough to notice the squad: pour toward it, but stay on the
         // bridge. The squad may hang over the edge; the horde may not.
         const want = Math.max(-e.lim, Math.min(e.lim, this.x + e.off * (R + 0.5)));
@@ -225,7 +263,8 @@ class Sim {
         if (e.cd <= 0 && e.z > 9 && e.z < 38) this.spit(e);
       }
       const reach = R + e.r;
-      if (e.z <= reach * 0.8 && e.z > -1.5 && Math.abs(e.x - this.x) <= reach) {
+      // (A charging ram hits through its marked lane, not by touch.)
+      if (!e.chg && e.z <= reach * 0.8 && e.z > -1.5 && Math.abs(e.x - this.x) <= reach) {
         this.loseUnits(e.dmg, e.x, e.z);
         if (e.type === 'bomber') this.emit({ t: 'boom', x: e.x, z: e.z, r: 1.6, bomber: true });
         e.hp = 0;
@@ -247,6 +286,42 @@ class Sim {
       w++;
     }
     en.length = w;
+    this.wards = wardsNext;
+    this.wards2 = wards;
+  }
+
+  // A fallen broodmother's clutch hatches where she dropped.
+  hatch(b) {
+    const d = ENEMIES.whelp;
+    const lim = roadLimit('whelp');
+    for (let i = 0; i < b.n; i++) {
+      const x = Math.max(-lim, Math.min(lim, b.x + (this.rng() - 0.5) * 1.5));
+      this.spawnEnemy({ type: 'whelp', x, s: b.s + (this.rng() - 0.3) * 1.1, hp: d.hp * this.L.hpUnit * b.pack, dmg: d.dmg * b.pack });
+    }
+    this.emit({ t: 'hatch', x: b.x, z: b.s - this.p });
+  }
+
+  // A ram close enough to charge marks the lane it will run. The mark is laid
+  // where the squad will be when the ram gets there.
+  markCharge(e) {
+    const march = this.bossHold ? 0 : SCROLL;
+    const half = e.r + 0.3;
+    e.chg = 1;
+    e.chgT = RAM_FUSE;
+    e.tgt = this.p + march * RAM_FUSE;
+    this.hazards.push({ kind: 'charge', x0: e.x - half, x1: e.x + half, s: e.tgt, zr: 1.5, t: RAM_FUSE, t0: RAM_FUSE, share: 0.14, min: 2, owner: e });
+    this.emit({ t: 'charge', x: e.x, z: e.z });
+  }
+
+  // It paws the ground, then covers the distance so as to arrive as the mark runs out.
+  chargeStep(e, dt) {
+    if (e.chg === 2) {
+      e.s -= RAM_RUN * dt;
+      return;
+    }
+    e.chgT -= dt;
+    if (e.chgT > RAM_FUSE - RAM_PAW) return;
+    e.s -= Math.max(0, e.s - e.tgt) * Math.min(1, dt / Math.max(dt, e.chgT));
   }
 
   // A spitter lobs a blob at where the squad will be when it lands. The spot
@@ -295,46 +370,103 @@ class Sim {
     const hz = this.hazards;
     let w = 0;
     for (const h of hz) {
+      if (h.owner && h.owner.hp <= 0) continue; // the ram that marked this lane is dead: the mark goes with it
       h.t -= dt;
       if (h.t > 0) {
         hz[w++] = h;
         continue;
       }
+      if (h.owner) h.owner.chg = 2;
       const f = this.overlap(h, this.x, R);
       const z = h.s - this.p;
-      this.emit({ t: 'blast', kind: h.kind, x0: h.x0, x1: h.x1, z, zr: h.zr, hit: f > 0 });
+      this.emit({ t: 'blast', kind: h.kind, x0: h.x0, x1: h.x1, z, zr: h.zr, hit: f > 0, boss: !!h.boss });
       if (f > 0 && this.count > 0) this.loseUnits(Math.max(h.min, this.count * h.share) * f, (Math.max(h.x0, this.x - R) + Math.min(h.x1, this.x + R)) / 2, 0.3);
       else this.dodged++;
     }
     hz.length = w;
   }
 
-  // The boss marks ground and then smashes it. Higher tiers know more moves.
+  // The boss marks ground and then strikes it. Each kind has its own moves,
+  // and a golem learns more of them as the levels climb.
   bossAttack(b) {
     const tier = this.L.boss.tier;
     const fuse = Math.max(1.25, 1.75 - tier * 0.06);
-    const moves = ['smash'];
-    if (tier >= 2) moves.push('sweep');
-    if (tier >= 3) moves.push('pincer', 'spine');
-    const move = moves[Math.floor(this.rng() * moves.length)];
-    const add = (x0, x1, zc, zr, share) => this.hazards.push({ kind: 'slam', x0, x1, s: this.p + zc, zr, t: fuse, t0: fuse, share, min: 2 });
-    if (move === 'smash') {
-      // One blast on the squad, one beside it: there is always a way out.
-      const side = this.x > 0 ? -1 : 1;
-      add(this.x - 1.7, this.x + 1.7, 0, 1.9, 0.2);
-      const x2 = Math.max(-ROAD_HALF + 1.6, Math.min(ROAD_HALF - 1.6, this.x - side * 3.6));
-      add(x2 - 1.5, x2 + 1.5, 0, 1.7, 0.2);
-    } else if (move === 'sweep') {
-      // The half of the road the squad is standing on.
-      if (this.x > 0) add(-0.4, ROAD_HALF, 2, 5, 0.22);
-      else add(-ROAD_HALF, 0.4, 2, 5, 0.22);
-    } else if (move === 'pincer') {
-      add(-ROAD_HALF, -1.9, 2, 5, 0.22);
-      add(1.9, ROAD_HALF, 2, 5, 0.22);
+    const add = (x0, x1, zc, zr, share, late = 0) =>
+      this.hazards.push({ kind: 'slam', x0, x1, s: this.p + zc, zr, t: fuse + late, t0: fuse + late, share, min: 2, boss: true });
+    const pick = (moves) => moves[Math.floor(this.rng() * moves.length)];
+    let move;
+    if (b.kind === 'queen') {
+      move = pick(['volley', 'volley', 'wall', 'hatch']);
+      if (move === 'volley') {
+        // Four blobs, one after another, each at where the squad then stands.
+        b.lobs = 4;
+        b.lobT = 0;
+      } else if (move === 'wall') {
+        // Acid across the road but for one gap, on the far side of the squad.
+        const gap = Math.max(-3.4, Math.min(3.4, this.x + (this.x > 0 ? -3.4 : 3.4)));
+        for (const c of [-4.4, -2.2, 0, 2.2, 4.4]) {
+          if (Math.abs(c - gap) >= 2.6) this.acidPool(b, c, 1.25, fuse + 0.2, 0.2);
+        }
+      } else {
+        const k = Math.ceil(this.L.boss.minions * 0.6);
+        for (let i = 0; i < k; i++) this.bossMinion(b);
+        this.emit({ t: 'hatch', x: b.x, z: b.z - 2 });
+      }
+    } else if (b.kind === 'beast') {
+      move = pick(['charge', 'stampede', 'stampede', 'pincer']);
+      if (move === 'charge') {
+        // The lane the squad is in, then the one beside it where there is less room to run.
+        add(this.x - 2.0, this.x + 2.0, 2, 5, 0.24);
+        const side = this.x > 0 ? 1 : -1;
+        const x2 = this.x + side * 3.5;
+        if (Math.abs(x2) < ROAD_HALF + 1) add(Math.max(-ROAD_HALF, x2 - 1.5), Math.min(ROAD_HALF, x2 + 1.5), 2, 5, 0.2, 0.55);
+      } else if (move === 'stampede') {
+        // One half of the road, then the other: cross over between the two.
+        const first = this.x > 0 ? 1 : -1;
+        for (const [side, late] of [[first, 0], [-first, 0.85]]) {
+          if (side > 0) add(-0.4, ROAD_HALF, 2, 5, 0.22, late);
+          else add(-ROAD_HALF, 0.4, 2, 5, 0.22, late);
+        }
+      } else {
+        add(-ROAD_HALF, -1.9, 2, 5, 0.22);
+        add(1.9, ROAD_HALF, 2, 5, 0.22);
+      }
     } else {
-      add(-1.9, 1.9, 2, 5, 0.22);
+      const moves = ['smash'];
+      if (tier >= 2) moves.push('sweep');
+      if (tier >= 3) moves.push('pincer', 'spine');
+      move = pick(moves);
+      if (move === 'smash') {
+        // One blast on the squad, one beside it: there is always a way out.
+        const side = this.x > 0 ? -1 : 1;
+        add(this.x - 1.7, this.x + 1.7, 0, 1.9, 0.2);
+        const x2 = Math.max(-ROAD_HALF + 1.6, Math.min(ROAD_HALF - 1.6, this.x - side * 3.6));
+        add(x2 - 1.5, x2 + 1.5, 0, 1.7, 0.2);
+      } else if (move === 'sweep') {
+        // The half of the road the squad is standing on.
+        if (this.x > 0) add(-0.4, ROAD_HALF, 2, 5, 0.22);
+        else add(-ROAD_HALF, 0.4, 2, 5, 0.22);
+      } else if (move === 'pincer') {
+        add(-ROAD_HALF, -1.9, 2, 5, 0.22);
+        add(1.9, ROAD_HALF, 2, 5, 0.22);
+      } else {
+        add(-1.9, 1.9, 2, 5, 0.22);
+      }
     }
     this.emit({ t: 'bosscast', move, x: b.x, z: b.z });
+  }
+
+  // A pool of the queen's acid, lobbed from her to a marked spot.
+  acidPool(b, x, r, fuse, share) {
+    const ahead = this.bossHold ? 0 : SCROLL * fuse;
+    this.hazards.push({ kind: 'acid', x0: x - r, x1: x + r, s: this.p + ahead, zr: r, t: fuse, t0: fuse, share, min: 2, boss: true });
+    this.emit({ t: 'spit', x: b.x, z: b.z, tx: x, tz: ahead, fuse, big: true });
+  }
+
+  bossMinion(b) {
+    const type = BOSS_KINDS[b.kind].minion;
+    const x = Math.max(-4.5, Math.min(4.5, b.x + (this.rng() * 2 - 1) * 4));
+    this.spawnEnemy({ type, x, s: b.s - 2.2 - this.rng() * 2.5, hp: this.L.boss.minionHp * ENEMIES[type].hp, dmg: ENEMIES[type].dmg });
   }
 
   callStrike() {
@@ -383,8 +515,9 @@ class Sim {
     }
     if (b.stun > 0) b.stun -= dt;
     else if (this.bossHold) b.s -= this.L.boss.speed * dt;
-    // It turns to face the squad, but is too broad to follow it to the rail.
-    const d = Math.max(-BOSS_LIMIT, Math.min(BOSS_LIMIT, this.x)) - b.x;
+    // It turns to face the squad, as far toward the rail as its bulk allows.
+    const limit = BOSS_KINDS[b.kind].limit;
+    const d = Math.max(-limit, Math.min(limit, this.x)) - b.x;
     b.x += Math.sign(d) * Math.min(Math.abs(d), 1.3 * dt);
     b.z = b.s - this.p;
     // Minion waves.
@@ -392,9 +525,16 @@ class Sim {
     if (b.spawnT <= 0 && b.z > 9) {
       b.spawnT = this.L.boss.minionEvery;
       const k = this.L.boss.minions;
-      for (let i = 0; i < k; i++) {
-        const x = Math.max(-4.5, Math.min(4.5, b.x + (this.rng() * 2 - 1) * 4));
-        this.spawnEnemy({ type: 'grunt', x, s: b.s - 2.2 - this.rng() * 2.5, hp: this.L.boss.minionHp, dmg: ENEMIES.grunt.dmg });
+      for (let i = 0; i < k; i++) this.bossMinion(b);
+    }
+    // The queen's volley: one blob at a time, each aimed afresh.
+    if (b.lobs > 0 && b.stun <= 0) {
+      b.lobT -= dt;
+      if (b.lobT <= 0) {
+        b.lobT = 0.5;
+        b.lobs--;
+        const lim = ROAD_HALF - 1.0;
+        this.acidPool(b, Math.max(-lim, Math.min(lim, this.x)), 1.45, 1.25, 0.16);
       }
     }
     // Marked attacks, once the squad has stopped to fight.
@@ -417,10 +557,13 @@ class Sim {
   }
 
   damageEnemy(e, d, bombed) {
+    if (e.warded && !bombed) d *= WARD_CUT; // a warder's shield; bombs fall straight through it
     e.hp -= d;
     e.flash = 1;
     if (e.hp <= 0) {
       this.kills++;
+      const litter = ENEMIES[e.type].litter;
+      if (litter) this.births.push({ x: e.x, s: e.s, n: litter, pack: e.dmg / ENEMIES[e.type].dmg });
       if (this.strikeOn && !bombed) this.charge = Math.min(1, this.charge + ENEMIES[e.type].hp / this.chargeNeed);
       this.emit({ t: 'kill', x: e.x, z: e.z, k: e.type, ph: e.phase, bombed });
     }

@@ -112,7 +112,7 @@ class Fx {
   kill(e, sim) {
     const lk = ENEMY_LOOK[e.k];
     const col = enemyShade(lk.col, e.ph);
-    const heavy = e.k === 'brute' || e.k === 'giant' || e.k === 'warlord';
+    const heavy = e.k === 'brute' || e.k === 'giant' || e.k === 'warlord' || e.k === 'brood' || e.k === 'ram' || e.k === 'warder';
     if (e.k === 'spitter') this.explosion(e.x, e.z, 0.9, ACID, 0.9); // its sacs burst
     if (e.k === 'giant') this.slow = Math.max(this.slow, 0.14);
     const full = heavy || (this.killBudget-- > 0 && this.corpses.length < MAX_CORPSES);
@@ -126,7 +126,7 @@ class Fx {
     if (full) {
       // The body is thrown back up the road and falls on its back
       // (runners, carried by their own speed, pitch forward instead).
-      const fwd = e.k === 'runner' || e.k === 'dire';
+      const fwd = e.k === 'runner' || e.k === 'dire' || e.k === 'whelp' || e.k === 'ram';
       this.corpses.push({
         mesh: lk.mesh, x: e.x, y: 0, z: e.z, s: size, col,
         vx: (e.x - sim.x) * 0.3 + rnd(-1.8, 1.8), vy: (heavy ? rnd(2, 3) : rnd(3.5, 6)) * (e.bombed ? 1.9 : 1), vz: fwd ? rnd(-3, -1) : heavy ? rnd(1.5, 3) : rnd(3.5, 7.5),
@@ -205,7 +205,17 @@ class Fx {
   blast(e, sim, anyHit) {
     const mid = (e.x0 + e.x1) / 2;
     const w = e.x1 - e.x0;
-    if (e.kind === 'shell') {
+    if (e.kind === 'charge') {
+      // A ram thunders through: dust and stone, and a jolt if it caught the squad.
+      this.debris(mid, 0.3, e.z, 9, [0.34, 0.32, 0.34], 8, 0.2);
+      this.sprite({ add: false, shape: 2, x: mid, y: 0.5, z: e.z, vy: 1.2, s0: 0.9, s1: 2.6, col: [0.6, 0.58, 0.56], a: 0.4, life: 0.6, pow: 1.4 });
+      this.sprite({ flat: 1, x: mid, y: 0.05, z: e.z, s0: w * 0.6, s1: w * 0.9, ar: (e.zr * 2) / w, col: [1, 0.8, 0.3], a: 0.7, life: 0.2 });
+      this.shakeAmt = Math.max(this.shakeAmt, e.hit ? 0.6 : 0.25);
+      if (!e.hit && this.dodgeT <= 0 && sim.count > 0) {
+        this.text('DODGED', sim.x, 2.3, 0.6, '#8dffb8', 0.8);
+        this.dodgeT = 0.6;
+      }
+    } else if (e.kind === 'shell') {
       this.explosion(mid, e.z, 1.7, FIRE, 0.5);
       this.debris(mid, 0.3, e.z, 6, [0.3, 0.28, 0.3], 7, 0.2);
       this.shakeAmt = Math.max(this.shakeAmt, e.hit ? 0.5 : 0.3);
@@ -314,12 +324,19 @@ class Fx {
           break;
         case 'boss': toast(bossName(sim.L.n) + ' is here', 2200); sound.play('boss'); break;
         case 'spit':
-          this.lobs.push({ x0: e.x, z0: e.z, x1: e.tx, z1: e.tz, t: 0, fuse: e.fuse, h: 2.4 });
-          this.sprite({ x: e.x, y: 1.3, z: e.z - 0.5, s0: 0.3, s1: 0.9, col: ACID.ball, a: 0.9, life: 0.15 });
+          this.lobs.push({ x0: e.x, z0: e.z, x1: e.tx, z1: e.tz, t: 0, fuse: e.fuse, h: e.big ? 3.4 : 2.4, big: !!e.big });
+          this.sprite({ x: e.x, y: e.big ? 3.5 : 1.3, z: e.z - (e.big ? 1.8 : 0.5), s0: e.big ? 0.7 : 0.3, s1: e.big ? 2.0 : 0.9, col: ACID.ball, a: 0.9, life: 0.15 });
           sound.play('spit');
           break;
-        case 'blast': if (e.kind === 'slam') this.bossHit = 0; this.blast(e, sim, slamHit); sound.play(e.kind === 'acid' ? 'splash' : e.kind === 'shell' ? 'boom' : 'slam'); break;
+        case 'blast': if (e.boss) this.bossHit = 0; this.blast(e, sim, e.kind === 'slam' ? slamHit : e.hit); sound.play(e.kind === 'acid' ? 'splash' : e.kind === 'shell' ? 'boom' : 'slam'); break;
         case 'bosscast': sound.play('warn'); break;
+        case 'charge': sound.play('warn'); break; // a ram has marked its lane
+        case 'hatch':
+          // A clutch splits open.
+          this.sprite({ x: e.x, y: 1.0, z: e.z, s0: 0.5, s1: 2.2, col: [1, 0.9, 0.45], a: 0.9, life: 0.22 });
+          this.sparks(e.x, 0.9, e.z, 10, [1, 0.92, 0.5], 6, 0.5, 0.14);
+          this.debris(e.x, 0.8, e.z, 5, [1, 0.9, 0.5], 5, 0.14);
+          break;
         case 'shelling': toast('Incoming shellfire', 1800); sound.play('warn'); break;
         case 'shell':
           // The round itself, falling onto its mark.

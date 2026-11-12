@@ -16,7 +16,7 @@
 
 const { ROAD_HALF, SCROLL, INFANTRY, byId, fmt, zoneOf } = __m["src/data.js"];
 const { buildMeshes, decodeAnim, VERT_SIZE } = __m["src/meshes.js"];
-const { ENEMY_LOOK, FAR_Z, FAR_MESH, WEAPON_LOOK, GATE_COLORS, HAZARD_COLORS, bossColor, BOSS_SCALE, squadMeshes, enemySize, enemyShade, squadSlot } = __m["src/look.js"];
+const { ENEMY_LOOK, WARD_COLOR, FAR_Z, FAR_MESH, WEAPON_LOOK, GATE_COLORS, HAZARD_COLORS, bossColor, BOSS_LOOK, squadMeshes, enemySize, enemyShade, squadSlot } = __m["src/look.js"];
 const MESH_VERT = `#version 300 es
 layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNor;
@@ -358,6 +358,7 @@ class Renderer {
     const caps = {
       box: 1400, chunk: 460, grunt: 900, grunt_far: 900, runner: 500, runner_far: 500, shield: 320, shield_far: 320,
       bomber: 200, bomber_far: 200, spitter: 60, spitter_far: 60, brute: 160, brute_far: 160, giant: 24, boss: 2,
+      brood: 40, ram: 24, warder: 16, queen: 2, beast: 2,
       rocket: 140, crate: 12, jet: 4,
     };
     this.b = {};
@@ -568,20 +569,34 @@ class Renderer {
       if (e.type === 'spitter') {
         if (e.cd < 0.3 && e.z > 9 && e.z < 38) strike = (1 - Math.max(0, e.cd) / 0.3) * 0.5;
         else if (e.spat < 0.35) strike = 0.5 + (e.spat / 0.35) * 0.5;
-      } else if (lk.atk) {
+      } else if (lk.atk && !e.chg) {
         const tHit = (e.z - (R + e.r) * 0.8) / (e.speed + march);
         if (tHit < lk.atk * 0.88 && Math.abs(e.x - sim.x) < R + e.r + 0.7) strike = 0.88 - tHit / lk.atk;
       }
       if (strike >= 0) {
         this.pose(lk.mesh, 'attack', strike);
         this.striking++;
-      } else this.pose(lk.mesh, 'walk', (time * lk.walk + e.phase) / 6.2832);
+      } else {
+        // A ram paws the ground slowly, then gallops flat out down its lane.
+        const pace = e.chg ? (e.chg === 1 && e.chgT > 0.9 ? 0.6 : 2.6) : 1;
+        this.pose(lk.mesh, 'walk', (time * lk.walk * pace + e.phase) / 6.2832);
+      }
       const hit = e.flash > 0 ? e.flash : 0;
       const pulse = e.type === 'bomber' ? 0.25 + 0.25 * Math.sin(time * 16 + e.phase) : 0;
       // Lean back when shot; weave a little while walking. Far-off bodies use a lighter model.
       const batch = e.z > this.farZ && FAR_MESH[lk.mesh] ? b[lk.mesh + '_far'] : b[lk.mesh];
       batch.add(e.x, bob, e.z, size, size, size, enemyShade(lk.col, e.phase), Math.sin(time * lk.walk * 0.5 + e.phase) * 0.05, 0, Math.max(hit, pulse), this.fa, -hit * 0.3, this.fb);
       if (e.type === 'spitter') this.glow.add(e.x, 1.1 * size + bob, e.z + 0.1, 0.75, 0.75, 0, 0, [0.5, 1, 0.25], 0.3 + 0.12 * Math.sin(time * 5 + e.phase), 0);
+      else if (e.type === 'brood') this.glow.add(e.x, 1.2 * size, e.z + 0.25, 1.1, 1.1, 0, 0, [1, 0.9, 0.45], 0.3 + 0.1 * Math.sin(time * 4 + e.phase), 0);
+      else if (e.wardR) {
+        // The shield: a ring on the road as wide as its reach, and the crystal that casts it.
+        const r = e.wardR;
+        const beat = 0.5 + 0.5 * Math.sin(time * 3 + e.phase);
+        this.glow.add(e.x, 0.05, e.z, r / 0.78, r / 0.78, 0, 1, WARD_COLOR, 0.5 + 0.25 * beat, 1);
+        this.glow.add(e.x, 0.045, e.z, r, r, 0, 2, WARD_COLOR, 0.07 + 0.04 * beat, 1);
+        this.glow.add(e.x, 2.45 * size, e.z, 1.0, 1.0, 0, 0, WARD_COLOR, 0.5 + 0.2 * beat, 0);
+      }
+      if (e.warded && e.z < 46) this.glow.add(e.x, 0.75 * size, e.z, 0.95 * size, 1.15 * size, 0, 0, WARD_COLOR, 0.3, 0);
       this.shadow(e.x, e.z, e.r * 1.25 * (1 - bob));
       if (e.type === 'bomber') this.glow.add(e.x, 1.32 * size + bob, e.z, 0.3, 0.3, 0, 0, [1, 0.7, 0.2], 0.6 + 0.4 * Math.sin(time * 30 + e.phase), 0);
     }
@@ -592,26 +607,27 @@ class Renderer {
       const x = dying ? bd.x + (Math.random() - 0.5) * 0.3 : boss.x;
       const z = dying ? bd.z : boss.z;
       const stomp = 0;
+      const bl = BOSS_LOOK[boss.kind] || BOSS_LOOK.golem;
       // The boss winds up while its marked ground counts down and brings the
       // blow down as it lands; it does the same as it closes on the squad.
       let strike = -1;
       if (!dying) {
         let slam = null;
-        for (const h of sim.hazards) if (h.kind === 'slam' && (!slam || h.t < slam.t)) slam = h;
-        if (slam) strike = (1 - Math.max(0, slam.t) / slam.t0) * 0.85;
+        for (const h of sim.hazards) if (h.boss && (!slam || h.t < slam.t)) slam = h;
+        if (slam) strike = bl.loop ? (time * 1.5) % 1 : (1 - Math.max(0, slam.t) / slam.t0) * 0.85;
         else if (fx.bossHit < 0.45) strike = 0.85 + (fx.bossHit / 0.45) * 0.15;
         else if (sim.bossHold && boss.stun <= 0) {
           const tHit = (boss.z - (R + 1.3)) / sim.L.boss.speed;
           if (tHit < 0.9 * 0.85) strike = 0.85 - tHit / 0.9;
         }
       }
-      if (strike >= 0) this.pose('boss', 'attack', strike);
-      else if (!dying && sim.bossHold && boss.stun <= 0) this.pose('boss', 'walk', (time * 2.4) / 6.2832);
-      else this.pose('boss', 'none', 0);
+      if (strike >= 0) this.pose(bl.mesh, 'attack', strike);
+      else if (!dying && sim.bossHold && boss.stun <= 0) this.pose(bl.mesh, 'walk', (time * bl.walk) / 6.2832);
+      else this.pose(bl.mesh, 'none', 0);
       const flash = dying ? 0.35 + 0.35 * Math.sin(time * 40) : boss.flash > 0 ? boss.flash * 0.7 : 0;
-      b.boss.add(x, stomp, z, BOSS_SCALE, BOSS_SCALE, BOSS_SCALE, bossColor(sim.L.n), Math.sin(time * 1.2) * 0.06, 0, flash, this.fa, dying ? -bd.t * 0.25 : -flash * 0.08, this.fb);
-      this.shadow(x, z, 3.4, 0.42);
-      this.glow.add(x, 3.0, z - 1.0, 1.6, 1.6, 0, 0, [1, 0.5, 0.15], 0.5 + 0.2 * Math.sin(time * 6), 0); // chest core
+      b[bl.mesh].add(x, stomp, z, bl.s, bl.s, bl.s, bossColor(sim.L.n), Math.sin(time * 1.2) * 0.06, 0, flash, this.fa, dying ? -bd.t * 0.25 : -flash * 0.08, this.fb);
+      this.shadow(x, z, bl.shadow, 0.42);
+      this.glow.add(x, bl.core[0], z + bl.core[1], 1.6, 1.6, 0, 0, bl.glow, 0.5 + 0.2 * Math.sin(time * 6), 0); // its lit heart
     }
     const sq = squadMeshes(sim.lo);
     for (const c of fx.corpses) {
@@ -690,7 +706,20 @@ class Renderer {
       const blink = h.t < 0.35 ? 0.65 + 0.35 * Math.sin(time * 50) : 1;
       const w = h.x1 - h.x0;
       const mid = (h.x0 + h.x1) / 2;
-      if (h.kind === 'acid' || h.kind === 'shell') {
+      if (h.kind === 'charge') {
+        // A ram's lane: lit from the squad all the way back to the ram, with bars racing down it.
+        const near = z - h.zr;
+        const far = Math.max(z + 3, Math.min(62, h.owner ? h.owner.z : z + 12));
+        const len = far - near;
+        const zc = (far + near) / 2;
+        this.glass.add(mid, 0.035, zc, w, 0.03, len, col, 0, 0.8, 0, 0, 0, 0, (0.2 + 0.35 * k) * blink);
+        for (let i = 0; i < 4; i++) {
+          const zz = far - ((time * 14 + (i * len) / 4) % len);
+          this.glass.add(mid, 0.05, zz, w * 0.7, 0.03, 0.18, [1, 0.95, 0.7], 0, 1, 0, 0, 0, 0, 0.75);
+        }
+        for (const ex of [h.x0, h.x1]) this.b.box.add(ex, 0.06, zc, 0.1, 0.05, len, col, 0, 1);
+        this.glow.add(mid, 0.06, z, w * 0.6, h.zr, 0, 0, col, (0.15 + 0.35 * k) * blink, 1);
+      } else if (h.kind === 'acid' || h.kind === 'shell') {
         const r = h.zr;
         this.glow.add(mid, 0.05, z, r / 0.78, r / 0.78, 0, 1, col, 0.95 * blink, 1);
         this.glow.add(mid, 0.045, z, r * (0.25 + 0.75 * k), r * (0.25 + 0.75 * k), 0, 2, col, (0.25 + 0.4 * k) * blink, 1);
@@ -718,10 +747,11 @@ class Renderer {
       const u = Math.min(1, l.t / l.fuse);
       const x = l.x0 + (l.x1 - l.x0) * u;
       const z = l.z0 + (l.z1 - l.z0) * u;
-      const y = 1.2 * (1 - u) + 0.2 * u + l.h * 4 * u * (1 - u);
-      this.glow.add(x, y, z, 0.42, 0.42, 0, 0, HAZARD_COLORS.acid, 1, 0);
-      this.glow.add(x, y, z, 0.2, 0.2, 0, 0, [0.95, 1, 0.8], 1, 0);
-      this.shadow(x, z, 0.3, 0.25);
+      const y = (l.big ? 3.4 : 1.2) * (1 - u) + 0.2 * u + l.h * 4 * u * (1 - u);
+      const g = l.big ? 1.8 : 1;
+      this.glow.add(x, y, z, 0.42 * g, 0.42 * g, 0, 0, HAZARD_COLORS.acid, 1, 0);
+      this.glow.add(x, y, z, 0.2 * g, 0.2 * g, 0, 0, [0.95, 1, 0.8], 1, 0);
+      this.shadow(x, z, 0.3 * g, 0.25);
     }
     for (const q of fx.chunks) {
       const k = Math.min(1, (q.life / q.max) * 3); // shrink away at the end

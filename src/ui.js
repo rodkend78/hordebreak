@@ -1,6 +1,6 @@
 // Menus and the heads-up display, built as ordinary HTML on top of the canvas.
 
-const { WEAPONS, INFANTRY, ENEMIES, ENEMY_TIPS, STRIKE_FROM, STAR_BONUS, SHELL_FROM, zoneOf, shopOffers, loadoutOf, byId, isBossLevel, bossName, levelReward, fmt } = __m["src/data.js"];
+const { WEAPONS, INFANTRY, ENEMIES, ENEMY_TIPS, BOSS_TIPS, STRIKE_FROM, STAR_BONUS, SHELL_FROM, zoneOf, shopOffers, loadoutOf, byId, isBossLevel, bossName, bossKind, levelReward, fmt } = __m["src/data.js"];
 const { THUMBS } = __m["src/thumbs.js"];
 const qs = (sel, root = document) => root.querySelector(sel);
 const thumb = (id) => (THUMBS[id] ? `<img class="thumb" src="${THUMBS[id]}" alt="" width="56" height="56">` : '');
@@ -115,7 +115,7 @@ function renderHome(save, plan) {
   qs('#home-brief').textContent = walled
     ? 'This horde outguns your squad. Spend your coins in the armory before you march.'
     : boss
-    ? `${bossName(save.level)} waits at the end of the road. It marks the ground before it strikes: get off it, and bring the boss down before it reaches the squad.`
+    ? `${bossName(save.level)} waits at the end of the road. ${BOSS_TIPS[bossKind(save.level)]}`
     : newcomer
     ? `New enemy: ${ENEMIES[newcomer].name}. ${ENEMY_TIPS[newcomer]}`
     : save.level === STRIKE_FROM
