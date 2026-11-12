@@ -668,6 +668,199 @@ def jet():
     return m
 
 
+# ------------------------------------------------------------------ beyond level 50
+EGG = (1.0, 0.93, 0.5)
+ICE = (0.72, 0.96, 1.0)
+
+
+def brood():
+    """A carrier: its back is a clutch of lit egg sacs that burst into whelps when it falls."""
+    m = Model('brood', rig=RIG_GRUNT)
+    th = dict(bone='thigh_r', mirror=True)
+    sh = dict(bone='shin_r', mirror=True)
+    ch = dict(bone='chest')
+    hd = dict(bone='head')
+    m.limb(P(0.14, 0.02, 0.54), P(0.15, 0.02, 0.32), (0.25, 0.27), (0.21, 0.23), col=BODY_D, tint=1, bevel=0.03, **th)
+    m.limb(P(0.15, 0.02, 0.34), P(0.16, 0.0, 0.12), (0.21, 0.23), (0.17, 0.19), col=BODY_D, tint=1, bevel=0.03, **sh)
+    m.box(P(0.16, 0.07, 0.06), (0.23, 0.36, 0.12), taper=(0.85, 0.8), col=BODY_DD, tint=1, bevel=0.03, **sh)
+    m.box(P(0, 0.02, 0.56), (0.48, 0.36, 0.12), col=PLATE_D, bevel=0.03, bone='root')  # belt
+    m.box(P(0, 0.1, 0.8), (0.48, 0.4, 0.5), rot=(20, 0, 0), taper=(1.35, 1.2), col=BODY, tint=1, bevel=0.07, **ch)  # stooped torso
+    m.box(P(0, 0.31, 0.76), (0.34, 0.08, 0.3), rot=(20, 0, 0), col=BODY_L, tint=1, bevel=0.03, **ch)  # belly plate
+    light(m, P(0, 0.375, 0.79), 0.07, axis='f', col=EGG, detail=True, **ch)
+    # The clutch: a steel cradle on the back, sacs piled in it, ribs curling over.
+    m.box(P(0, -0.1, 1.0), (0.7, 0.42, 0.1), rot=(-14, 0, 0), col=PLATE_D, bevel=0.03, **ch)
+    for x, f, u, r in ((0, -0.2, 1.3, 0.27), (0.27, -0.1, 1.14, 0.2), (-0.27, -0.1, 1.14, 0.2), (0, -0.42, 1.08, 0.22),
+                       (0.2, -0.34, 0.86, 0.15), (-0.2, -0.34, 0.86, 0.15)):
+        m.ball(P(x, f, u), (r, r, r * 1.15), sub=2, col=EGG, glow=0.75, detail=r < 0.16, **ch)
+    for sx in (-1, 1):
+        m.spike(P(sx * 0.36, 0.0, 1.02), P(sx * 0.2, -0.16, 1.66), 0.09, seg=4, col=BONE, **ch)
+        m.spike(P(sx * 0.32, -0.3, 0.96), P(sx * 0.14, -0.52, 1.44), 0.08, seg=4, col=BONE, detail=True, **ch)
+    # A small head slung low and forward.
+    m.box(P(0, 0.36, 1.1), (0.3, 0.34, 0.26), taper=(0.8, 0.85), col=SKIN_T, tint=1, bevel=0.06, **hd)
+    m.box(P(0, 0.5, 1.02), (0.2, 0.1, 0.06), col=MOUTH, bevel=0.012, **hd)
+    m.box(P(0, 0.48, 0.96), (0.22, 0.18, 0.08), taper=(0.9, 0.9), col=BODY_D, tint=1, bevel=0.03, **hd)
+    m.box(P(0, 0.47, 1.2), (0.3, 0.12, 0.06), rot=(14, 0, 0), col=BODY_D, tint=1, bevel=0.02, detail=True, **hd)
+    eyes(m, 0.08, 0.535, 1.12, (0.06, 0.035, 0.045), col=EGG, **hd)
+    ua = dict(bone='arm_r', mirror=True)
+    fa = dict(bone='fore_r', mirror=True)
+    m.limb(P(0.33, 0.12, 0.99), P(0.34, 0.36, 0.86), (0.14, 0.14), (0.12, 0.12), col=BODY, tint=1, bevel=0.03, **ua)
+    m.limb(P(0.34, 0.36, 0.86), P(0.26, 0.56, 0.78), (0.13, 0.13), (0.11, 0.11), col=SKIN_T, tint=1, bevel=0.03, **fa)
+    m.box(P(0.25, 0.6, 0.77), (0.14, 0.13, 0.12), col=BODY_D, tint=1, bevel=0.03, **fa)
+    return m
+
+
+def ram(kind='ram'):
+    """An armoured battering beast. The boss (`beast`) is the same animal grown
+    huge, with a crown of horns, a lit spine and a burning brow."""
+    m = Model(kind, rig=RIG_HOUND)
+    boss = kind == 'beast'
+    fu = dict(bone='fleg_r', mirror=True)
+    fs = dict(bone='fshin_r', mirror=True)
+    hu = dict(bone='hleg_r', mirror=True)
+    hs = dict(bone='hshin_r', mirror=True)
+    ch = dict(bone='chest')
+    rt = dict(bone='root')
+    hd = dict(bone='head')
+    lit = GOLD if boss else AMBER
+    # Legs: thick and plated.
+    m.limb(P(0.17, 0.3, 0.5), P(0.18, 0.37, 0.23), (0.2, 0.25), (0.15, 0.18), col=BODY, tint=1, bevel=0.03, **fu)
+    m.limb(P(0.18, 0.37, 0.25), P(0.18, 0.34, 0.07), (0.15, 0.18), (0.13, 0.15), col=PLATE_S, bevel=0.025, **fs)
+    m.box(P(0.18, 0.39, 0.05), (0.19, 0.26, 0.1), col=PLATE_D, bevel=0.03, **fs)
+    m.limb(P(0.17, -0.26, 0.56), P(0.19, -0.42, 0.28), (0.2, 0.29), (0.14, 0.18), col=BODY, tint=1, bevel=0.035, **hu)
+    m.limb(P(0.19, -0.42, 0.29), P(0.19, -0.31, 0.07), (0.13, 0.15), (0.115, 0.13), col=BODY_D, tint=1, bevel=0.02, **hs)
+    m.box(P(0.19, -0.26, 0.05), (0.18, 0.25, 0.1), col=PLATE_D, bevel=0.03, **hs)
+    # Body: a deep chest under a humped, plated shoulder.
+    m.box(P(0, 0.2, 0.62), (0.46, 0.52, 0.46), taper=(0.85, 1), col=BODY, tint=1, bevel=0.06, **ch)
+    m.box(P(0, 0.17, 0.89), (0.52, 0.5, 0.16), taper=(0.8, 0.9), col=PLATE_S, bevel=0.05, **ch)  # shoulder plate
+    m.box(P(0, -0.22, 0.6), (0.38, 0.5, 0.34), rot=(-6, 0, 0), taper=(0.9, 1), col=BODY, tint=1, bevel=0.05, **rt)  # loin
+    m.box(P(0, -0.24, 0.8), (0.4, 0.42, 0.1), rot=(-6, 0, 0), col=PLATE_S, bevel=0.035, **rt)  # croup plate
+    m.box(P(0, 0.0, 0.44), (0.28, 0.62, 0.12), col=BODY_D, tint=1, bevel=0.025, **rt)  # belly
+    for sx in (-1, 1):
+        m.lathe([(0.2, 0.0), (0.18, 0.05 * sx)], P(sx * 0.23, 0.2, 0.66), axis='x', seg=6, exact=True, col=BODY_L, tint=1, **ch)
+        light(m, P(sx * 0.283, 0.2, 0.66), 0.12, axis='x', flip=sx < 0, col=lit, **ch)
+        m.box(P(sx * 0.2, -0.24, 0.64), (0.03, 0.32, 0.06), col=lit, glow=1, bevel=0, detail=not boss, **rt)
+    # Head: carried low behind a wedge of steel.
+    m.limb(P(0, 0.36, 0.68), P(0, 0.58, 0.64), (0.3, 0.3), (0.27, 0.27), col=BODY, tint=1, bevel=0.04, **hd)  # neck
+    m.box(P(0, 0.66, 0.62), (0.34, 0.3, 0.3), taper=(0.85, 0.9), col=SKIN_T, tint=1, bevel=0.05, **hd)  # skull
+    # The ram plate: bare steel on a ram, enamelled in its own colour on the boss.
+    m.box(P(0, 0.84, 0.66), (0.44, 0.1, 0.44), rot=(-22, 0, 0), taper=(0.8, 0.75), col=BODY_L if boss else PLATE_S, tint=1 if boss else 0, bevel=0.04, **hd)
+    m.box(P(0, 0.9, 0.5), (0.34, 0.06, 0.07), col=PLATE_D, bevel=0.02, **hd)  # its cutting edge
+    m.prism([(-0.12, 0.84), (0.12, 0.84), (0, 0.64)], 0.02, at=0.915, plane='xu', col=lit, glow=1, bevel=0, rot=(-22, 0, 0), rot_at=P(0, 0.9, 0.7), **hd)
+    m.box(P(0, 0.76, 0.46), (0.22, 0.24, 0.07), rot=(-10, 0, 0), col=BODY_D, tint=1, bevel=0.02, bone='jaw')
+    m.box(P(0.185, 0.74, 0.7), (0.03, 0.08, 0.05), col=EYE, glow=1, bevel=0, mirror=True, **hd)
+    for sx in (-1, 1):  # horns swept forward for the charge
+        m.limb(P(sx * 0.17, 0.62, 0.74), P(sx * 0.33, 0.74, 0.88), 0.1, 0.085, round=True, seg=5, col=BONE, **hd)
+        m.spike(P(sx * 0.32, 0.73, 0.87), P(sx * 0.36, 1.06, 0.8), 0.085, seg=5, col=BONE, **hd)
+    # Spine and tail.
+    for i in range(3):
+        m.spike(P(0, 0.26 - i * 0.24, 0.94 - i * 0.05), P(0, 0.14 - i * 0.24, 1.2 - i * 0.08), 0.12 - i * 0.015, seg=4, col=BONE, detail=i == 1 and not boss,
+                bone='chest' if i < 2 else 'root')
+    m.limb(P(0, -0.44, 0.68), P(0, -0.64, 0.78), (0.1, 0.1), (0.07, 0.07), col=BODY_D, tint=1, bevel=0.015, bone='tail')
+    m.ball(P(0, -0.7, 0.8), 0.1, sub=1, smooth=0, col=PLATE_S, bone='tail')
+    if boss:
+        for i in range(4):  # a lit ridge down the back
+            m.lathe([(0.0, 0.0), (0.07, 0.07), (0.0, 0.3)], P(0, 0.34 - i * 0.2, 0.96 - i * 0.04), seg=4, exact=True, col=GOLD, glow=0.9,
+                    bone='chest' if i < 2 else 'root')
+        for sx in (-1, 1):  # a second, higher pair of horns and plated flanks
+            m.limb(P(sx * 0.13, 0.56, 0.78), P(sx * 0.24, 0.5, 1.0), 0.09, 0.075, round=True, seg=5, col=BONE, **hd)
+            m.spike(P(sx * 0.235, 0.5, 0.98), P(sx * 0.3, 0.7, 1.28), 0.075, seg=5, col=BONE, **hd)
+            m.box(P(sx * 0.22, -0.02, 0.62), (0.05, 0.3, 0.22), col=PLATE_D, bevel=0.02, **rt)
+            light(m, P(sx * 0.25, -0.02, 0.62), 0.07, axis='x', flip=sx < 0, col=GOLD, **rt)
+        m.lathe([(0.12, 0), (0.135, 0.05)], P(0, 0.62, 0.79), seg=8, cap=False, col=GOLD, glow=0.9, **hd)  # burning brow band
+        m.ball(P(0, 0.455, 0.52), (0.16, 0.06, 0.14), col=(1, 0.55, 0.15), glow=1, **ch)  # chest core
+        for sx in (-1, 1):
+            m.spike(P(sx * 0.06, -0.7, 0.86), P(sx * 0.2, -0.78, 1.02), 0.06, seg=4, col=GOLD, glow=0.8, bone='tail')
+    return m
+
+
+def warder():
+    """A standard-bearer: the crystal on its pole shields the horde around it."""
+    m = Model('warder', rig=RIG_SHIELD)
+    th = dict(bone='thigh_r', mirror=True)
+    sh = dict(bone='shin_r', mirror=True)
+    pole = dict(bone='arm_r')
+    hd = dict(bone='head')
+    m.limb(P(0.14, 0, 0.54), P(0.14, 0, 0.3), (0.2, 0.22), (0.17, 0.19), col=BODY_D, tint=1, bevel=0.03, **th)
+    m.limb(P(0.14, 0.01, 0.33), P(0.14, 0, 0.1), (0.2, 0.22), (0.17, 0.2), col=PLATE_S, bevel=0.03, **sh)
+    m.box(P(0.14, 0.05, 0.065), (0.21, 0.34, 0.13), taper=(0.85, 0.8), col=PLATE_D, bevel=0.035, **sh)
+    m.box(P(0, 0, 0.56), (0.44, 0.32, 0.1), col=PLATE_D, bevel=0.025, bone='root')
+    m.prism([(-0.17, 0.6), (0.17, 0.6), (0.13, 0.24), (0, 0.14), (-0.13, 0.24)], 0.03, at=0.175, plane='xu', col=BODY_L, tint=1, bevel=0.01, bone='root')  # tabard
+    m.prism([(-0.17, 0.6), (0.17, 0.6), (0.15, 0.2), (-0.15, 0.2)], 0.03, at=-0.17, plane='xu', col=BODY_D, tint=1, bevel=0.01, bone='root')
+    m.box(P(0, 0, 0.84), (0.42, 0.3, 0.48), taper=(1.3, 1.1), col=BODY, tint=1, bevel=0.05, bone='chest')  # cuirass
+    light(m, P(0, 0.165, 0.88), 0.1, axis='f', col=ICE, rim=PLATE_S, bone='chest')
+    m.box(P(0, 0.02, 1.06), (0.56, 0.34, 0.1), col=PLATE_S, bevel=0.03, bone='chest')  # collar
+    m.ball(P(0.34, 0, 1.06), (0.18, 0.18, 0.12), sub=1, smooth=0, col=BODY_L, tint=1, mirror=True, bone='chest')
+    # A tall mitre helm with one lit slit.
+    m.box(P(0, 0.02, 1.26), (0.28, 0.3, 0.3), taper=(0.85, 0.88), col=PLATE_S, bevel=0.06, **hd)
+    m.prism([(-0.15, 1.4), (0.15, 1.4), (0.11, 1.62), (0, 1.8), (-0.11, 1.62)], 0.22, at=0.02, plane='xu', col=BODY_L, tint=1, bevel=0.025, **hd)
+    m.prism([(-0.035, 1.46), (0.035, 1.46), (0, 1.7)], 0.02, at=0.135, plane='xu', col=ICE, glow=1, bevel=0, **hd)
+    m.box(P(0, 0.175, 1.27), (0.2, 0.03, 0.05), col=ICE, glow=1, bevel=0, **hd)
+    # The standard: a pole, a crossbar with a hanging banner, and the shield crystal in a ring.
+    px, pf = 0.4, 0.2
+    m.limb(P(px, pf - 0.06, 0.06), P(px, pf, 1.78), 0.045, round=True, seg=6, col=(0.24, 0.2, 0.27), **pole)
+    m.limb(P(px - 0.2, pf, 1.6), P(px + 0.2, pf, 1.6), 0.035, round=True, seg=5, col=PLATE_S, **pole)
+    m.prism([(px - 0.17, 1.6), (px + 0.17, 1.6), (px + 0.17, 1.14), (px, 1.0), (px - 0.17, 1.14)], 0.025, at=pf + 0.03, plane='xu', col=BODY, tint=1, bevel=0.008, **pole)
+    m.prism([(px, 1.5), (px + 0.09, 1.36), (px, 1.22), (px - 0.09, 1.36)], 0.02, at=pf + 0.05, plane='xu', col=ICE, glow=0.95, bevel=0, **pole)
+    m.lathe([(0.0, 0.0), (0.13, 0.17), (0.0, 0.46)], P(px, pf, 1.8), seg=4, exact=True, col=ICE, glow=0.9, **pole)
+    m.lathe([(0.25, -0.016), (0.28, 0.0), (0.25, 0.016)], P(px, pf, 2.0), seg=10, cap=False, col=ICE, glow=1, **pole)
+    m.lathe([(0.07, 0.0), (0.085, 0.035), (0.07, 0.07)], P(px, pf, 1.74), seg=6, col=PLATE_S, **pole)
+    m.limb(P(0.32, 0, 1.0), P(0.39, 0.17, 0.86), (0.13, 0.13), col=BODY_D, tint=1, bevel=0.025, **pole)
+    m.box(P(0.4, 0.19, 0.84), (0.15, 0.15, 0.14), col=PLATE_S, bevel=0.035, **pole)
+    # The free hand is raised, palm out.
+    off = dict(bone='arm_l')
+    m.limb(P(-0.32, 0, 1.0), P(-0.4, 0.2, 0.92), (0.13, 0.13), col=BODY_D, tint=1, bevel=0.025, **off)
+    m.box(P(-0.41, 0.27, 0.96), (0.14, 0.06, 0.17), col=PLATE_S, bevel=0.025, **off)
+    m.box(P(-0.41, 0.305, 0.96), (0.06, 0.02, 0.06), col=ICE, glow=1, bevel=0, detail=True, **off)
+    return m
+
+
+def queen():
+    """The brood's queen: a spitter grown vast, crowned in crystal, dragging her clutch behind her."""
+    m = Model('queen', rig=RIG_SPITTER)
+    th = dict(bone='thigh_r', mirror=True)
+    sh = dict(bone='shin_r', mirror=True)
+    hd = dict(bone='head')
+    ch = dict(bone='chest')
+    rt = dict(bone='root')
+    m.limb(P(0.17, -0.02, 0.5), P(0.185, -0.01, 0.29), (0.2, 0.22), (0.17, 0.19), col=BODY_D, tint=1, bevel=0.025, **th)
+    m.limb(P(0.185, -0.01, 0.31), P(0.2, 0.0, 0.1), (0.19, 0.21), (0.15, 0.17), col=PLATE_S, bevel=0.025, **sh)
+    m.box(P(0.2, 0.06, 0.05), (0.2, 0.34, 0.1), taper=(0.85, 0.8), col=PLATE_D, bevel=0.025, **sh)
+    m.box(P(0, 0.06, 0.7), (0.5, 0.48, 0.46), rot=(24, 0, 0), taper=(1.2, 1.1), col=BODY, tint=1, bevel=0.06, **ch)
+    m.box(P(0, 0.29, 0.66), (0.36, 0.08, 0.3), rot=(24, 0, 0), col=BODY_L, tint=1, bevel=0.03, **ch)
+    light(m, P(0, 0.345, 0.7), 0.09, axis='f', col=ACID, **ch)
+    # The clutch she drags: a swollen abdomen banded in steel, studded with eggs.
+    m.ball(P(0, -0.44, 0.56), (0.34, 0.44, 0.3), sub=2, smooth=0, col=BODY_D, tint=1, **rt)
+    m.lathe([(0.345, -0.03), (0.345, 0.03)], P(0, -0.36, 0.56), axis='f', seg=10, cap=False, scale=(1, 0.88), col=PLATE_S, **rt)
+    for x, f, u, r in ((0.2, -0.5, 0.78, 0.14), (-0.2, -0.5, 0.78, 0.14), (0, -0.66, 0.76, 0.15), (0, -0.86, 0.56, 0.16), (0.27, -0.66, 0.56, 0.12), (-0.27, -0.66, 0.56, 0.12)):
+        m.ball(P(x, f, u), r, sub=2, col=EGG, glow=0.75, **rt)
+    # Crystal rack on the back.
+    m.box(P(0, -0.12, 0.9), (0.66, 0.36, 0.1), rot=(8, 0, 0), col=PLATE_D, bevel=0.03, **ch)
+    m.lathe([(0.0, 0.0), (0.19, 0.14), (0.2, 0.56), (0.0, 0.8)], P(0, -0.14, 0.92), seg=6, exact=True, col=ACID, glow=0.8, **ch)
+    m.lathe([(0.215, 0.0), (0.215, 0.06)], P(0, -0.14, 1.14), seg=6, exact=True, col=PLATE_S, **ch)
+    for sx in (-1, 1):
+        m.lathe([(0.0, 0.0), (0.12, 0.1), (0.13, 0.38), (0.0, 0.54)], P(sx * 0.27, -0.2, 0.9), seg=6, exact=True, col=ACID, glow=0.8, **ch)
+        m.lathe([(0.145, 0.0), (0.145, 0.045)], P(sx * 0.27, -0.2, 1.04), seg=6, exact=True, col=PLATE_S, **ch)
+        m.spike(P(sx * 0.36, -0.06, 0.92), P(sx * 0.62, -0.1, 1.26), 0.09, seg=6, col=ACID, glow=0.8, **ch)
+    # Neck, head and a wide mortar maw.
+    m.limb(P(0, 0.2, 0.86), P(0, 0.42, 1.18), (0.24, 0.24), (0.2, 0.2), col=SKIN_T, tint=1, bevel=0.03, **hd)
+    m.box(P(0, 0.46, 1.27), (0.38, 0.36, 0.28), taper=(0.8, 0.85), col=SKIN_T, tint=1, bevel=0.05, **hd)
+    m.lathe([(0.09, 0.0), (0.21, 0.2)], P(0, 0.6, 1.3), axis='f', seg=6, exact=True, cap=False, col=PLATE_S, **hd)
+    m.ball(P(0, 0.72, 1.3), (0.14, 0.07, 0.14), sub=1, col=(0.75, 1, 0.35), glow=1, **hd)
+    eyes(m, 0.15, 0.58, 1.4, (0.05, 0.05, 0.045), col=(0.8, 1, 0.4), **hd)
+    eyes(m, 0.19, 0.5, 1.33, (0.03, 0.05, 0.04), col=(0.8, 1, 0.4), detail=True, **hd)
+    m.lathe([(0.17, 0), (0.19, 0.06)], P(0, 0.42, 1.41), seg=8, cap=False, col=GOLD, glow=0.9, **hd)  # crown band
+    for i in range(5):
+        a = math.radians(-90 + (i - 2) * 50)
+        cx, cf = math.cos(a) * 0.18, 0.42 - math.sin(a) * 0.18 - 0.36
+        m.lathe([(0.0, 0.0), (0.05, 0.06), (0.0, 0.26 if i != 2 else 0.36)], P(cx, cf + 0.36 - 0.0, 1.44), seg=4, exact=True, col=GOLD, glow=0.9, **hd)
+    # Two pairs of arms.
+    arm = dict(bone='arm_r', mirror=True)
+    m.limb(P(0.22, 0.2, 0.82), P(0.3, 0.44, 0.6), (0.12, 0.12), (0.1, 0.1), col=BODY_D, tint=1, bevel=0.02, **arm)
+    m.spike(P(0.3, 0.43, 0.61), P(0.3, 0.6, 0.5), 0.07, seg=4, col=BONE, **arm)
+    m.limb(P(0.26, 0.1, 0.72), P(0.42, 0.26, 0.5), (0.1, 0.1), (0.08, 0.08), col=BODY_D, tint=1, bevel=0.02, detail=True, **arm)
+    return m
+
+
 ENEMIES = {
     'grunt': (grunt, (0.95, 0.27, 0.3), 1.0),
     'runner': (runner, (1.0, 0.5, 0.14), 0.98),
@@ -677,6 +870,12 @@ ENEMIES = {
     'brute': (lambda: heavy('brute'), (0.88, 0.22, 0.42), 1.12),
     'giant': (lambda: heavy('giant'), (0.74, 0.16, 0.38), 1.95),
     'boss': (lambda: heavy('boss'), (0.78, 0.12, 0.2), 3.1),
+    # Past level 50.
+    'brood': (brood, (1.0, 0.42, 0.68), 1.35),
+    'ram': (lambda: ram('ram'), (0.1, 0.62, 0.55), 1.9),
+    'warder': (warder, (0.45, 0.8, 1.0), 1.25),
+    'queen': (queen, (0.5, 0.2, 0.8), 3.3),
+    'beast': (lambda: ram('beast'), (0.86, 0.42, 0.1), 4.0),
 }
 LOD_ENEMIES = ['grunt', 'runner', 'shield', 'bomber', 'spitter', 'brute']
 INFANTRY = [

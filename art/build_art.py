@@ -105,6 +105,19 @@ if MODE in ('all', 'horde'):
 if MODE in ('all', 'boss'):
     fn, tint, sc_ = models.ENEMIES['boss']
     sheet(os.path.join(OUT, 'sheet_boss.png'), [('boss', tint, (0, 0, 0), 0.0, 1.0), ('boss', tint, (2.6, 0, 0), math.pi * 0.8, 1.0)], (1.3, -5.2, 2.2), (1.3, 0, 0.95), res=(1400, 800), lens=40)
+if MODE in ('all', 'late'):
+    items = []
+    for n, x in {'brood': -3.6, 'ram': -1.2, 'warder': 1.6}.items():
+        fn, tint, sc_ = models.ENEMIES[n]
+        items.append((n, tint, (x, 0, 0), 0.0, sc_))
+        items.append((n, tint, (x, 3.6, 0), math.pi * 0.75, sc_))
+    sheet(os.path.join(OUT, 'sheet_late.png'), items, (2.0, -9.5, 3.4), (-0.6, 1.2, 1.0), lens=36)
+    items = []
+    for n, x in {'queen': -3.4, 'beast': 3.0}.items():
+        fn, tint, sc_ = models.ENEMIES[n]
+        items.append((n, tint, (x, 0, 0), 0.0, sc_))
+        items.append((n, tint, (x + 0.8, 8.5, 0), math.pi * 0.72, sc_))
+    sheet(os.path.join(OUT, 'sheet_late_boss.png'), items, (3.0, -17.0, 6.0), (0.2, 3.0, 2.0), lens=36)
 if MODE in ('all', 'squad'):
     items = []
     for i, (iname, tint) in enumerate(models.INFANTRY):

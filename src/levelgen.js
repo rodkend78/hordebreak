@@ -5,7 +5,7 @@
 // "mercy" (0..1) scales the threat down. It stays at 1 unless the pre-flight
 // check in bot.js finds the level cannot be won with the player's loadout.
 
-const { ROAD_HALF, ENEMIES, roadLimit, SHELL_FROM, refAt, isBossLevel, levelReward } = __m["src/data.js"];
+const { ROAD_HALF, ENEMIES, roadLimit, SHELL_FROM, bossKind, refAt, isBossLevel, levelReward } = __m["src/data.js"];
 const { mulberry32, hashSeed } = __m["src/rng.js"];
 const TENSION_MIN = 0.46;
 const TENSION_MAX = 1.0;
@@ -72,6 +72,26 @@ function generateLevel(n, seed, mercy = 1) {
       heavy.push('warlord');
       budget -= ENEMIES.warlord.hp;
     }
+    // Past level 50: carriers, rams and a standard-bearer join the heavies.
+    // Each is paid for out of the same budget, so the block is no bigger.
+    let warders = 0;
+    if (types.includes('brood') && flavor !== 'lane') {
+      const cost = ENEMIES.brood.hp + ENEMIES.brood.litter * ENEMIES.whelp.hp;
+      const k = Math.min(4, Math.floor((budget * rr(0.06, 0.14)) / cost));
+      for (let i = 0; i < k; i++) heavy.push('brood');
+      budget -= k * cost;
+    }
+    if (types.includes('ram') && flavor !== 'lane' && rng() < 0.6) {
+      const k = budget > 260 && rng() < 0.4 ? 2 : 1;
+      for (let i = 0; i < k; i++) heavy.push('ram');
+      budget -= k * ENEMIES.ram.hp;
+    }
+    if (types.includes('warder') && (flavor === 'block' || flavor === 'final') && rng() < 0.5) {
+      warders = n >= 80 && budget > 300 && rng() < 0.4 ? 2 : 1;
+      for (let i = 0; i < warders; i++) heavy.push('warder');
+      // Its shield makes the bodies around it last longer: thin the block to pay for that.
+      budget = budget * (1 - 0.1 * warders) - warders * ENEMIES.warder.hp;
+    }
     if (types.includes('brute')) {
       const k = Math.floor((budget * rr(0.1, 0.22)) / ENEMIES.brute.hp);
       for (let i = 0; i < Math.min(k, 8); i++) heavy.push('brute');
@@ -119,7 +139,11 @@ function generateLevel(n, seed, mercy = 1) {
       addEnemy('spitter', x0 + ((i + 0.5) / spitters) * width + rr(-0.5, 0.5), at + depth + 1.5 + rr(0, 2.5), 1);
     }
     for (const h of heavy) {
-      addEnemy(h, rr(x0 + 0.8, x1 - 0.8), at + rr(0, Math.max(1, depth)) + (h === 'giant' ? depth * 0.5 : 0), 1);
+      // A ram comes behind the block, with room to run; a warder walks in the middle of it.
+      const hx = rr(x0 + 0.8, x1 - 0.8);
+      const back = h === 'giant' ? depth * 0.5 : h === 'ram' ? depth + 2 : 0;
+      const row = h === 'warder' ? rr(0.35, 0.65) * depth : rr(0, Math.max(1, depth));
+      addEnemy(h, hx, at + row + back, 1);
     }
     exp = Math.max(3, exp * (1 - 0.12 * tension));
     return depth;
@@ -262,6 +286,7 @@ function generateLevel(n, seed, mercy = 1) {
       minions: Math.max(3, Math.min(36, Math.round(exp * 0.3 * tension * thin))),
       minionHp: hpUnit,
       tier: Math.floor(n / 5),
+      kind: bossKind(n),
     };
   } else {
     horde(length - 42, -ROAD_HALF + 0.4, ROAD_HALF - 0.4, 6, 'final');

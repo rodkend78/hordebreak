@@ -109,7 +109,7 @@ python3 gen_models.py            # regenerates src/models.js and src/thumbs.js
 python3 build.py
 ```
 
-`python art/build_art.py horde` (or `squad`, `boss`, `props`) renders preview
+`python art/build_art.py horde` (or `squad`, `boss`, `props`, `late`) renders preview
 sheets into `out/`.
 
 ## Checks

@@ -65,14 +65,34 @@ const ENEMIES = {
   // Late game: a pack leader as fast as a runner, and a mid-sized golem.
   dire: { name: 'Dire Hound', hp: 5, speed: 4.0, lat: 3.2, r: 0.5, dmg: 1.2, from: 23 },
   warlord: { name: 'Warlord', hp: 24, speed: 1.4, lat: 1.3, r: 0.95, wide: 1.15, dmg: 3, from: 27 },
+  // Past level 50, three with tricks of their own (see sim.js).
+  // A carrier: when it falls its clutch hatches into `litter` whelps.
+  brood: { name: 'Broodmother', hp: 10, speed: 1.6, lat: 1.4, r: 0.58, dmg: 1, from: 52, litter: 4 },
+  whelp: { name: 'Whelp', hp: 0.5, speed: 4.6, lat: 3.6, r: 0.26, dmg: 0.2, from: 52, hatched: true },
+  // Marks a lane, then charges down it. Kill it first, or step out of the lane.
+  ram: { name: 'Ram', hp: 14, speed: 1.7, lat: 1.3, r: 0.62, wide: 0.82, dmg: 2, from: 56 },
+  // Carries a standard that shields every enemy within `ward` of it.
+  warder: { name: 'Warder', hp: 12, speed: 1.7, lat: 1.4, r: 0.5, wide: 0.9, dmg: 0.6, from: 62, ward: 2.7 },
 };
+const WARD_CUT = 0.35; // share of a hit that gets through a warder's shield
 // How far from the middle of the road an enemy's centre may be.
 function roadLimit(type) {
   const d = ENEMIES[type];
   return ROAD_HALF - (d.wide || d.r);
 }
-// The boss is drawn far wider than the body bullets hit; this keeps its arms inside the rails.
-const BOSS_LIMIT = 2.0;
+// Three kinds of boss. r = the body bullets hit; limit = how far from the
+// middle of the road it will follow the squad (the golem is too broad to go
+// near the rail); minion = what it sends ahead of itself.
+const BOSS_KINDS = {
+  golem: { r: 2.2, limit: 2.0, minion: 'grunt', names: ['Gorefist', 'Ironmaw', 'Skullcrown', 'Dreadhorn', 'The Warden', 'Ashbringer', 'Old Hunger', 'Kingbreaker'] },
+  queen: { r: 1.7, limit: 3.0, minion: 'whelp', names: ['The Brood Queen', 'Venomcrown', 'Mother of Spit', 'The Pale Clutch'] },
+  beast: { r: 1.7, limit: 3.0, minion: 'grunt', names: ['Gatebreaker', 'Old Thunder', 'Ironhide', 'The Stampede'] },
+};
+// The golem alone up to level 50; after that the three take turns.
+function bossKind(n) {
+  const tier = Math.floor(n / 5);
+  return tier <= 10 ? 'golem' : ['queen', 'golem', 'beast'][(tier - 11) % 3];
+}
 
 // From this level on, stretches of road come under shellfire (see levelgen.js).
 const SHELL_FROM = 21;
@@ -85,6 +105,12 @@ const ZONES = [
   { name: 'Nightline', sky: [0.07, 0.09, 0.2], road: [0.2, 0.22, 0.34], line: [0.3, 0.8, 0.9], wall: [0.08, 0.1, 0.22], post: [0.12, 0.14, 0.3], lamp: [0.3, 0.9, 1.0], rail: [0.2, 0.5, 0.7], sea: [0.03, 0.06, 0.16], pier: [0.06, 0.08, 0.18], tone: [0.72, 0.78, 1.0] },
   { name: 'Blight', sky: [0.5, 0.66, 0.42], road: [0.34, 0.4, 0.36], line: [0.6, 0.72, 0.5], wall: [0.16, 0.26, 0.2], post: [0.2, 0.34, 0.24], lamp: [0.7, 1.0, 0.3], rail: [0.3, 0.5, 0.34], sea: [0.24, 0.4, 0.12], pier: [0.14, 0.22, 0.14], tone: [0.92, 1.0, 0.88] },
   { name: 'Emberfront', sky: [0.36, 0.1, 0.1], road: [0.3, 0.24, 0.26], line: [0.9, 0.5, 0.3], wall: [0.2, 0.08, 0.08], post: [0.3, 0.1, 0.1], lamp: [1.0, 0.4, 0.15], rail: [0.5, 0.2, 0.16], sea: [0.5, 0.14, 0.04], pier: [0.16, 0.07, 0.07], tone: [1.0, 0.86, 0.8] },
+  // Levels 51 to 100.
+  { name: 'Frostline', sky: [0.78, 0.88, 0.96], road: [0.5, 0.57, 0.7], line: [0.88, 0.94, 1.0], wall: [0.34, 0.44, 0.6], post: [0.42, 0.54, 0.72], lamp: [0.5, 0.9, 1.0], rail: [0.58, 0.72, 0.9], sea: [0.52, 0.7, 0.8], pier: [0.32, 0.42, 0.56], tone: [0.94, 1.0, 1.08] },
+  { name: 'Dustreach', sky: [0.9, 0.74, 0.46], road: [0.56, 0.46, 0.34], line: [0.86, 0.72, 0.48], wall: [0.4, 0.28, 0.18], post: [0.5, 0.36, 0.22], lamp: [1.0, 0.9, 0.5], rail: [0.66, 0.5, 0.3], sea: [0.7, 0.54, 0.3], pier: [0.36, 0.26, 0.16], tone: [1.08, 0.98, 0.82] },
+  { name: 'Undertow', sky: [0.03, 0.14, 0.18], road: [0.14, 0.3, 0.32], line: [0.2, 0.95, 0.75], wall: [0.05, 0.16, 0.18], post: [0.08, 0.24, 0.26], lamp: [0.3, 1.0, 0.7], rail: [0.14, 0.6, 0.5], sea: [0.02, 0.2, 0.2], pier: [0.04, 0.12, 0.14], tone: [0.7, 0.95, 0.92] },
+  { name: 'Stormwall', sky: [0.34, 0.36, 0.46], road: [0.3, 0.31, 0.38], line: [0.95, 0.9, 0.4], wall: [0.18, 0.18, 0.26], post: [0.24, 0.24, 0.34], lamp: [1.0, 0.95, 0.4], rail: [0.42, 0.42, 0.56], sea: [0.16, 0.18, 0.26], pier: [0.12, 0.12, 0.18], tone: [0.86, 0.88, 0.98] },
+  { name: 'Voidgate', sky: [0.08, 0.02, 0.14], road: [0.2, 0.14, 0.3], line: [1.0, 0.3, 0.9], wall: [0.1, 0.04, 0.18], post: [0.16, 0.06, 0.28], lamp: [1.0, 0.35, 0.95], rail: [0.6, 0.2, 0.7], sea: [0.14, 0.02, 0.22], pier: [0.08, 0.03, 0.14], tone: [0.86, 0.72, 1.0] },
 ];
 function zoneOf(n) {
   const i = Math.floor((Math.max(1, n) - 1) / 10);
@@ -103,15 +129,28 @@ const ENEMY_TIPS = {
   bomber: 'Bombers blow a hole in the squad. Drop them early.',
   dire: 'Dire Hounds run as fast as the pack and take five times the fire.',
   warlord: 'Warlords hit for three soldiers. Focus them before they close.',
+  brood: 'Broodmothers burst into whelps when they fall. Kill them far out.',
+  ram: 'Rams mark a lane and charge down it. Drop them first, or step out of the lane.',
+  warder: 'Warders shield every enemy near them. Shoot the standard-bearer first; an airstrike ignores the shield.',
+};
+// What to say on the home screen before each kind of boss.
+const BOSS_TIPS = {
+  golem: 'It marks the ground before it strikes: get off it, and bring the boss down before it reaches the squad.',
+  queen: 'She lobs acid where you stand and walls the road with it, and her whelps come fast. Keep moving.',
+  beast: 'It marks lanes and charges them, one after another. Watch which lane clears first.',
 };
 
 // The airstrike: charged by kills, called in by the player.
 const STRIKE_FROM = 3; // first level it is available
 const STRIKE_PER_LEVEL = 2.3; // roughly how many a full level's kills pay for
 
-const BOSS_NAMES = ['Gorefist', 'Ironmaw', 'Skullcrown', 'Dreadhorn', 'The Warden', 'Ashbringer', 'Old Hunger', 'Kingbreaker'];
 function bossName(n) {
-  return BOSS_NAMES[(Math.floor(n / 5) - 1 + BOSS_NAMES.length * 8) % BOSS_NAMES.length];
+  const kind = bossKind(n);
+  const names = BOSS_KINDS[kind].names;
+  const tier = Math.floor(n / 5);
+  // Golems keep their old order; the others count their own appearances.
+  const i = kind === 'golem' ? tier - 1 + names.length * 8 : Math.floor((tier - 11) / 3);
+  return names[i % names.length];
 }
 
 // Medals for a win: how much of the squad made it home.
@@ -312,4 +351,4 @@ function fmt(n) {
   return (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2)) + units[u];
 }
 
-return { ROAD_HALF, SCROLL, DT, VIEW, BULLET_RANGE, MAX_COUNT, START_COUNT, WEAPONS, INFANTRY, UPGRADES, ENEMIES, roadLimit, BOSS_LIMIT, ENEMY_TIPS, SHELL_FROM, ZONES, zoneOf, STRIKE_FROM, STRIKE_PER_LEVEL, bossName, starsFor, STAR_BONUS, isBossLevel, levelReward, upgradeCost, weaponPower, newSave, byId, loadoutOf, shopOffers, buy, bestPurchase, canUpgrade, autoSpend, refAt, fmt };
+return { ROAD_HALF, SCROLL, DT, VIEW, BULLET_RANGE, MAX_COUNT, START_COUNT, WEAPONS, INFANTRY, UPGRADES, ENEMIES, WARD_CUT, roadLimit, BOSS_KINDS, bossKind, ENEMY_TIPS, BOSS_TIPS, SHELL_FROM, ZONES, zoneOf, STRIKE_FROM, STRIKE_PER_LEVEL, bossName, starsFor, STAR_BONUS, isBossLevel, levelReward, upgradeCost, weaponPower, newSave, byId, loadoutOf, shopOffers, buy, bestPurchase, canUpgrade, autoSpend, refAt, fmt };
